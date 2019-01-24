@@ -10,38 +10,6 @@ import java.util.Scanner;
 import java.io.IOException;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
-//
-//  ToDo:
-//  x update current LED 2 update niet 
-//  x RIO instelbaar.
-//  x linux
-//  - macOS
-//  x webcam 640x480 en 320x240 instelbaar 
-//  x check if Exposure time indication is correct ( gemeten is exact )
-//  x maximale afwijking tussen Cam1 en Cam2 meten ( gemeten afwijking is 50us )
-//  x drawframes zijn nog in het 320x240 format
-//  x stim in de zijkant van het beeld 2 pixels breedt
-//  x buffer indicator
-//  x tigger start met optie maximaal aantal frames opnemen instelbaar.
-//  - OnClose Event. ( alles afsluiten porten en gsensor trigger Cams )
-//  - Animal name number
-//  - issue: UART after connect - disconnect : buffer UART event only once ( maybe leftovers in buffer )
-//  - settings opslaan
-//  - settings ophalen uit miniscope
-//
-//  Issue List :
-//  - if( linux) sellectie maken van allen USBtty en niet allemaal
-//  - Gsensor spontaan aan ?? checken
-//  - Excitatie Licht kan niet worden uitgezet 
-//
-//
-// WishList
-// - graphic view for Stim optogenetics
-// - oplsaan in grayscale webcam aan en uit te vinken
-// - analo gain 4 settings
-// - doorlopend gemiddelde
-//
-////////////////////////////////////////////////////////////////////////////////////////////////
 
 ///////////////////////////////////////////////////////////////
 //
@@ -62,7 +30,6 @@ import java.io.IOException;
 //          - Zoom Cam 2
 //          - Append and Clear Notes one action
 //          - Save in ring buffers 
-
 
 //   v0.98  - Trigger input and ouput with frames per trigger
 //          - Communication from USB controller command based
