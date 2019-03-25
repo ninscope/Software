@@ -1,4 +1,3 @@
-// Need G4P library
 import g4p_controls.*;
 import java.awt.Font;
 import java.awt.*;
@@ -9,47 +8,9 @@ import java.util.Calendar;
 import java.util.Scanner;
 import java.io.IOException;
 
-////////////////////////////////////////////////////////////////////////////////////////////////
-
-///////////////////////////////////////////////////////////////
-//
-//    v0.9  - optogen sync and log
-//    v0.91 - console window added
-//    v0.92 - DualHead Miniscope
-//    v0.93 - Gray Images
-//    v0.94 - start delay 
-//    v0.95 - dropped frames
-//          - tempereture readout
-//    v0.96 - Timestamps
-//          - header gsensor          
-//          - gsensor log file beter format
-//          - video Capture library modified to connect with two MiniScopes with the same driver name
-//          - directory sturcture changed
-//          - optics logged with Gsensor disabled
-//    v0.97 - zoom Behave
-//          - Zoom Cam 2
-//          - Append and Clear Notes one action
-//          - Save in ring buffers 
-
-//   v0.98  - Trigger input and ouput with frames per trigger
-//          - Communication from USB controller command based
-//          - removed G sens scale function 
-//          - snapshot for Cam2 and Behav
-//          - all events moved to main file out of gui
-//          - settings moved to top
-//          - format changed to ratio ( Cam 1 and 2 changed 320 to 376 )
-//          - removed debug fields
-//          - opto settings changed to more general settings
-//          - Region adjusments in zoom window
-//          - Max frames for a recording automaticlly stops if max frames are captured
-//          - Auto and manual settings for optogentic stimulation
-//          - Name for experiment/project will be add to prefix of the file
-//          - stimulation visible in vide
-
 static final int MAJOR = 1;
 static final int MINOR = 00;
-// First Release
-//   v1.00    - Date : 08-11-2018
+static final int BUILD = 04;
 
 
 static final int CMD_GSENSOR_ON = 2;
@@ -65,7 +26,11 @@ static final int CMD_STOP_RECORD = 11;
 static final int CMD_TRIG_ON = 12;
 static final int CMD_TRIG_OFF = 13;
 static final int CMD_GSENSOR_OFF = 14;
-static final int CMD_RIO = 15;
+static final int CMD_ROI = 15;
+static final int CMD_AGAIN = 16;
+static final int CMD_BLACKOFFSET =   17;
+static final int CMD_AUTOCAL_ON  =  18;
+static final int CMD_AUTOCAL_OFF =   19;
 
 static final int IMGBUFSIZE = 60;
 
@@ -88,6 +53,11 @@ Boolean fRecord = false;
 Boolean fStartRecord = false;
 Boolean fStartRecord2 = false;
 
+int SveBlackLevel = 0;
+int SveBlackLevel2 = 0;
+int SveBlackOffset  = 512;
+int SveBlackOffset2 = 512;
+
 int     RecCntScp1 = 0;
 int     DropScp1 = 0;
 int     DropScp1Sve = 0;
@@ -100,6 +70,7 @@ int     Cam2RecordCnt = 0;
 int     SnapCnt = 0;                          // Counter each time a snap shot is taken
 int     SnapCnt2 = 0;
 int     SnapCnt3 = 0;
+
 int     RecStartTime = 0;
 int     FixedRecCnt = 0;
 
@@ -156,10 +127,14 @@ public void setup(){
   surface.setResizable(true);    //this make it possible the total size is viewable in the GUI builder
   surface.setSize(745,855);  
   
+  // workaround for buttons being unresponsive
+  // https://discourse.processing.org/t/g4p-with-p2d-p3d-processing-bug/5889
+  G4P.setMouseOverEnabled(false); // use this until the bug is fixed
+  
   // Custom 
   createGUI();
   customGUI();
-  surface.setTitle("NINScope v" + MAJOR + "." + MINOR );
+  surface.setTitle("NINScope v" + MAJOR + "." + MINOR + "." + BUILD );
   PImage icon = loadImage("NINlogo.png");
   surface.setIcon(icon);
   
@@ -168,7 +143,7 @@ public void setup(){
   GSensPanel.background(54);
   GSensPanel.endDraw();
    
-  frameRate(60);
+  frameRate(30);
   
    Tiff1Filename = new String[IMGBUFSIZE];
    Tiff2Filename = new String[IMGBUFSIZE];
@@ -256,21 +231,31 @@ public void draw(){
 
 }
 
+ //<>//
 
-synchronized public void winOptoDraw(PApplet appc, GWinData data) { 
-   appc.background(54);
-   appc.stroke(80);
-   appc.rect(20,210,420,1); // line between OptoGen settings and Trigger settings
-   appc.rect(20,320,420,1); // line between Trigger settings and Temperature 
-   appc.rect(20,410,420,1); // line between Trigger settings and Temperature 
-   
-   
+
+public void winOptoDraw(PApplet appc, GWinData data) { 
+   if(SettingsWnd.isVisible() == true)
+   {
+      appc.frameRate(30);
+      appc.background(54); //<>//
+      appc.stroke(80);
+      appc.rect(20,210,420,1); // line between OptoGen settings and Trigger settings
+      appc.rect(20,320,420,1); // line between Trigger settings and Temperature 
+      appc.rect(20,410,420,1); // line between Trigger settings and Temperature 
+   }
+   else
+   {
+     appc.frameRate(3);
+   }
 }
 
-synchronized public void WindZmCam1draw(PApplet appc, GWinData data) { 
-        appc.background(54);
+public void WindZmCam1draw(PApplet appc, GWinData data) { 
+
         if(WindowZoomCam1.isVisible() == true)
         {
+          appc.background(54);
+          appc.frameRate(30);
           if( fCamEnabled ){
             appc.image(cam, 0,0);
           if( (byte)cam.pixels[360955] == (byte)0xFF)
@@ -278,32 +263,51 @@ synchronized public void WindZmCam1draw(PApplet appc, GWinData data) {
               appc.stroke(255);
               appc.fill(255);
               appc.rect(0,460,752,20);
-
             }
           }
+        }  
+        else
+        {
+             appc.frameRate(3);
         }
+
 } 
 
-synchronized public void WindZmBehavdraw(PApplet appc, GWinData data) { 
+public void WindZmBehavdraw(PApplet appc, GWinData data) { 
 
-  appc.background(54);
+  
   if(windowZoomBehav.isVisible() == true)
   {
+          appc.background(54);
+          appc.frameRate(30);
           if( fBehavCamEnabled) {
             appc.image(BehavCam,0,0,640,480);
           }
+          
   }
+  else
+  {
+       appc.frameRate(3);
+  }
+
   
 } 
 
-synchronized public void WindZmCam2draw(PApplet appc, GWinData data) { 
-  appc.background(54);
-    if(WindowZoomCam2.isVisible() == true)
+public void WindZmCam2draw(PApplet appc, GWinData data) { 
+  
+  if(WindowZoomCam2.isVisible() == true)
   {
+          appc.background(54);
+          appc.frameRate(30);
           if( fCam2Enabled) {
             appc.image(cam2,0,0);
           }
   }
+  else
+  {
+       appc.frameRate(3);
+  }
+
 } 
 
 
@@ -332,12 +336,6 @@ public void customGUI(){
   WindowZoomCam2. setVisible(false);
   SettingsWnd.setVisible(false);
   
-  Sli_FocusCam1.setVisible(false);
-  Lbl_BlackOffset.setVisible(false);
-  LbL_FocusStat.setVisible(false);
-  
-  
-  
   SettingsWnd.addDrawHandler(this, "winOptoDraw");
   WindowZoomCam2.addDrawHandler(this, "WindZmCam2draw");
   windowZoomBehav.addDrawHandler(this, "WindZmBehavdraw");
@@ -352,6 +350,12 @@ public void customGUI(){
   timer1.start();
 
 }
+
+public void handleTextEvents(GEditableTextControl textcontrol, GEvent event) 
+{ /* code */ }
+
+public void handleDropListEvents(GDropList list, GEvent event) 
+{ /* code */ }
 
 
 public void handleTimer1 ( GTimer timer )
@@ -436,6 +440,58 @@ public void handleToggleControlEvents(GToggleControl CheckBox, GEvent event) {
               tf_RecFrmeCnt.setText("0");
             } 
           }
+          else if(CheckBox == ChBox_AutoCal)
+          {
+              if( ChBox_AutoCal.isSelected() == true) 
+              {
+                    SveBlackOffset = Sli_BlackOffsetCam1.getValueI();
+                    myPort.write(new byte[] { 0x02,CMD_AUTOCAL_ON,0,0});
+                    Sli_BlackOffsetCam1.setLimits(1,1,255);
+                    Lbl_BlackOffset.setText("Desired black level");
+                    Sli_BlackOffsetCam1.setValue(SveBlackLevel);
+                    LbL_BlackOffsetStat.setText(Integer.toString(SveBlackLevel));
+                    
+              }
+              else
+              {
+                    SveBlackLevel = Sli_BlackOffsetCam1.getValueI();
+                    myPort.write(new byte[] { 0x02,CMD_AUTOCAL_OFF,0,0});
+                    Sli_BlackOffsetCam1.setLimits(1,1,1023);
+                    Lbl_BlackOffset.setText("Black Offset");
+                    Sli_BlackOffsetCam1.setValue(SveBlackOffset);
+                    LbL_BlackOffsetStat.setText(Integer.toString(SveBlackOffset-512));
+              }
+          }
+          else if(CheckBox == ChBox_AutoCal2)
+          {
+              if( fSerial2Enabled == true)
+              {
+                    if( ChBox_AutoCal2.isSelected() == true) 
+                    {
+                          SveBlackOffset2 = Sli_BlackOffsetCam2.getValueI();
+                          myPort2.write(new byte[] { 0x02,CMD_AUTOCAL_ON,0,0});
+                          Sli_BlackOffsetCam2.setLimits(1,1,255);
+                          Lbl_BlackOffset2.setText("Desired black level");
+                          Sli_BlackOffsetCam2.setValue(SveBlackLevel2);
+                          LbL_BlackOffsetStat2.setText(Integer.toString(SveBlackLevel2));
+                          
+                    }
+                    else
+                    {
+                          SveBlackLevel2 = Sli_BlackOffsetCam2.getValueI();
+                          myPort2.write(new byte[] { 0x02,CMD_AUTOCAL_OFF,0,0});
+                          Sli_BlackOffsetCam2.setLimits(1,1,1023);
+                          Lbl_BlackOffset2.setText("Black Offset");
+                          Sli_BlackOffsetCam2.setValue(SveBlackOffset2);
+                          LbL_BlackOffsetStat2.setText(Integer.toString(SveBlackOffset2-512));
+                    }
+                    
+              }
+              else
+              {
+                    ConsoleArea.appendText( ConsoleLineNumb++ + " NINScope not connected");
+              }
+          }
     }
     else
     {
@@ -515,12 +571,12 @@ public void handleSlider2DEvents(GSlider2D slider2d, GEvent event) {
   
       if (slider2d == Sld_Cam1 && fSerialEnabled == true)
       {
-            myPort.write(new byte[] { 0x02,CMD_RIO,(byte)Sld_Cam1.getValueXI(),(byte)Sld_Cam1.getValueYI()});
+            myPort.write(new byte[] { 0x02,CMD_ROI,(byte)Sld_Cam1.getValueXI(),(byte)Sld_Cam1.getValueYI()});
       }
 
       if (slider2d == Sld_Cam2 && fSerial2Enabled == true)
       {
-          myPort2.write(new byte[] { 0x02,CMD_RIO,(byte)Sld_Cam2.getValueXI(),(byte)Sld_Cam2.getValueYI()});
+          myPort2.write(new byte[] { 0x02,CMD_ROI,(byte)Sld_Cam2.getValueXI(),(byte)Sld_Cam2.getValueYI()});
       }
 }
 
@@ -538,8 +594,8 @@ public void handleSliderEvents(GValueControl slider, GEvent event)
             SliExciCam1();
         else if(slider == Sli_GainCam1)
             SliGainCam1();
-        else if(slider == Sli_FocusCam1)
-            SliFocusCam1();
+        else if(slider == Sli_BlackOffsetCam1)
+            SliBlackOffsetCam1();
         else if( fSerial2Enabled == true)
         {
             if(slider == Sli_ExciCam2)
@@ -548,6 +604,8 @@ public void handleSliderEvents(GValueControl slider, GEvent event)
                 SliExpoCam2();
             else if(slider == Sli_GainCam2)
                 SliGainCam2();
+            else if(slider == Sli_BlackOffsetCam2)
+                SliBlackOffsetCam2();
         }
         else 
         {
@@ -617,12 +675,33 @@ public void SliExciCam2()
   }
 }
 
-public void SliFocusCam1()
+public void SliBlackOffsetCam1()
 {
-      
-        myPort.write(new byte[] { 0x02, CMD_FOCUS,(byte)(Sli_FocusCam1.getValueI()/256),(byte)Sli_FocusCam1.getValueI()});
-        LbL_FocusStat.setText(Integer.toString(Sli_FocusCam1.getValueI()));
+        myPort.write(new byte[] { 0x02, CMD_BLACKOFFSET,(byte)(Sli_BlackOffsetCam1.getValueI()/256),(byte)Sli_BlackOffsetCam1.getValueI()});
+        if( ChBox_AutoCal.isSelected() == true) 
+        {
+            LbL_BlackOffsetStat.setText(Integer.toString(Sli_BlackOffsetCam1.getValueI()));
+        }
+        else
+        {
+            LbL_BlackOffsetStat.setText(Integer.toString(Sli_BlackOffsetCam1.getValueI()-512));
+        }
 }
+
+
+public void SliBlackOffsetCam2()
+{
+        myPort2.write(new byte[] { 0x02, CMD_BLACKOFFSET,(byte)(Sli_BlackOffsetCam2.getValueI()/256),(byte)Sli_BlackOffsetCam2.getValueI()});
+        if( ChBox_AutoCal2.isSelected() == true) 
+        {
+            LbL_BlackOffsetStat2.setText(Integer.toString(Sli_BlackOffsetCam2.getValueI()));
+        }
+        else
+        {
+            LbL_BlackOffsetStat2.setText(Integer.toString(Sli_BlackOffsetCam2.getValueI()-512));
+        }
+}
+
 
 public void BtnSaveSettings()
 {
@@ -640,12 +719,12 @@ public void BtnSaveSettings()
           PWSettings.println(Sli_ExciCam1.getValueS());
           PWSettings.println(Sli_ExpoCam1.getValueS());
           PWSettings.println(Sli_GainCam1.getValueS());
-          PWSettings.println(Sli_FocusCam1.getValueS());
+          PWSettings.println(Sli_BlackOffsetCam1.getValueS());
           
           PWSettings.println(Sli_ExciCam2.getValueS());
           PWSettings.println(Sli_ExpoCam2.getValueS());
           PWSettings.println(Sli_GainCam2.getValueS());
-          //PWSettings.println(Sli_FocusCam2.getValueS());
+          PWSettings.println(Sli_BlackOffsetCam2.getValueS());
           
           //Settings
           PWSettings.println(Sli_OptoGen.getValueS());
@@ -666,14 +745,14 @@ public void BtnSaveSettings()
            else
                   PWSettings.println("false");
                   
+           if(Chkbox_FramesPT.isSelected() == true)
+                  PWSettings.println("true");
+           else
+                  PWSettings.println("false");       
+                  
            PWSettings.println(tf_FramesPT.getText());
            
            if(Chkox_RecFixedFrames.isSelected() == true)
-                  PWSettings.println("true");
-           else
-                  PWSettings.println("false");
-            
-           if(Chkbox_FramesPT.isSelected() == true)
                   PWSettings.println("true");
            else
                   PWSettings.println("false");
@@ -691,6 +770,16 @@ public void BtnSaveSettings()
           PWSettings.println(SerialList.getSelectedText());
           PWSettings.println(SerialPort2List.getSelectedText());
           PWSettings.println(BehavList1.getSelectedText());
+          
+           if(ChBox_AutoCal.isSelected() == true)
+                  PWSettings.println("true");
+           else
+                  PWSettings.println("false");             
+                  
+           if(ChBox_AutoCal2.isSelected() == true)
+                  PWSettings.println("true");
+           else
+                  PWSettings.println("false");
           
           PWSettings.flush();
           PWSettings.close();
@@ -762,10 +851,10 @@ void fileSelected(File selection) {
           Sli_GainCam1.setValue(Integer.parseInt(line));
           LbL_GainStat.setText(Integer.toString(Sli_GainCam1.getValueI())); 
           
-          //Focus
+          //BlackOffset
           line = reader.readLine(); println(line);
-          Sli_FocusCam1.setValue(Integer.parseInt(line));
-          LbL_FocusStat.setText(Integer.toString(Sli_FocusCam1.getValueI()));
+          Sli_BlackOffsetCam1.setValue(Integer.parseInt(line));
+          LbL_BlackOffsetStat.setText(Integer.toString(Sli_BlackOffsetCam1.getValueI()));
           
           // Excitation 
           line = reader.readLine(); println(line);
@@ -787,10 +876,10 @@ void fileSelected(File selection) {
           Sli_GainCam2.setValue(Integer.parseInt(line));
           LbL_GainStat2.setText(Integer.toString(Sli_GainCam2.getValueI())); 
           
-          //Focus
-          //line = reader.readLine(); println(line);
-          //Sli_FocusCam2.setValue(Integer.parseInt(line));
-          //LbL_FocusStat2.setText(Integer.toString(Sli_FocusCam2.getValueI()));
+         //BlackOffset 2
+          line = reader.readLine(); println(line);
+          Sli_BlackOffsetCam2.setValue(Integer.parseInt(line));
+          LbL_BlackOffsetStat2.setText(Integer.toString(Sli_BlackOffsetCam2.getValueI()));
           
           //Settings
           line = reader.readLine(); println(line);
@@ -821,8 +910,6 @@ void fileSelected(File selection) {
                 OG_OptoAuto.setSelected(true); 
           else
                 OG_OptoAuto.setSelected(false); 
-                
-                
           
           line = reader.readLine(); println(line);
           if(line.equals("true"))
@@ -832,7 +919,12 @@ void fileSelected(File selection) {
                 
           line = reader.readLine(); println(line);
           if(line.equals("true"))
-                Chkbox_FramesPT.setSelected(true); 
+          {
+                Chkbox_FramesPT.setSelected(true);
+                LbL_FramesPT.setVisible(true);
+                tf_FramesPT.setVisible(true);
+  
+          }
           else
                 Chkbox_FramesPT.setSelected(false); 
                 
@@ -841,7 +933,11 @@ void fileSelected(File selection) {
           
           line = reader.readLine(); println(line);
           if(line.equals("true"))
+          {
                 Chkox_RecFixedFrames.setSelected(true); 
+                LbL_RecFrameCnt.setVisible(true);
+                tf_RecFrmeCnt.setVisible(true);
+          }
           else
                 Chkox_RecFixedFrames.setSelected(false); 
                 
@@ -871,7 +967,19 @@ void fileSelected(File selection) {
           SerialPort2List.setSelected(SearchDropList( SerialPort2List , line));
           
           line = reader.readLine(); println(line);
-          BehavList1.setSelected(SearchDropList( BehavList1 , line));          
+          BehavList1.setSelected(SearchDropList( BehavList1 , line));      
+          
+          line = reader.readLine(); println(line);
+          if(line.equals("true"))
+                ChBox_AutoCal.setSelected(true); 
+          else
+                ChBox_AutoCal.setSelected(false); 
+
+          line = reader.readLine(); println(line);
+          if(line.equals("true"))
+                ChBox_AutoCal2.setSelected(true); 
+          else
+                ChBox_AutoCal2.setSelected(false); 
          
           reader.close();
     } catch (IOException e) {
@@ -886,9 +994,9 @@ void fileSelected(File selection) {
 public void BtnOKSettings()
 {
       if( ChkBox_TriggerInput.isSelected() == true)
-            myPort.write(new byte[] {0x02,CMD_SETTINGS,CMD_TRIG_ON,0,0 });
+            myPort.write(new byte[] {0x02,CMD_TRIG_ON,0,0 });
       else
-            myPort.write(new byte[] {0x02,CMD_SETTINGS,CMD_TRIG_OFF,0,0});
+            myPort.write(new byte[] {0x02,CMD_TRIG_OFF,0,0});
             
       myPort.write(new byte[] {0x02,
                 CMD_SETTINGS,
@@ -898,17 +1006,34 @@ public void BtnOKSettings()
                 (byte)Integer.parseInt(tf_PulseOff.getText()),
                 (byte)(Integer.parseInt(tf_BurstCnt.getText())/256),
                 (byte)Integer.parseInt(tf_BurstCnt.getText()),
-                (byte)(Integer.parseInt(tf_Pause.getText())/256),        // Pause
-                (byte)Integer.parseInt(tf_Pause.getText()),
+                (byte)(Integer.parseInt(tf_Pause.getText())/256),        // Pause mide byte
+                (byte)Integer.parseInt(tf_Pause.getText()),              // Pause Low byte
                 (byte)(Integer.parseInt(tf_LoopCnt.getText())/256),      // LoopCnt
                 (byte)Integer.parseInt(tf_LoopCnt.getText()),
                 (byte)Sli_OptoGen.getValueI(),
                 (byte)(Integer.parseInt(tf_StrDelay.getText())/256),     // StartDelay
                 (byte)Integer.parseInt(tf_StrDelay.getText()),
                 (byte)(Integer.parseInt(tf_FramesPT.getText())/256),     // StartDelay
-                (byte)Integer.parseInt(tf_FramesPT.getText())
+                (byte)Integer.parseInt(tf_FramesPT.getText()),
+                (byte)(Integer.parseInt(tf_Pause.getText())/65536)        // Pause high byte : at the end version conflicts
         });
         ConsoleArea.appendText( ConsoleLineNumb++ + " Settings Update");
+        println( (Integer.parseInt(tf_PulseOn.getText())/256),   // pulswidth On
+                (byte)Integer.parseInt(tf_PulseOn.getText()),
+                (byte)(Integer.parseInt(tf_PulseOff.getText())/256),     // pulswidth Off
+                (byte)Integer.parseInt(tf_PulseOff.getText()),
+                (byte)(Integer.parseInt(tf_BurstCnt.getText())/256),
+                (byte)Integer.parseInt(tf_BurstCnt.getText()),
+               (Integer.parseInt(tf_Pause.getText())/256),        // Pause mid byte
+                Integer.parseInt(tf_Pause.getText()),              // Pause Low byte
+                (byte)(Integer.parseInt(tf_LoopCnt.getText())/256),      // LoopCnt
+                (byte)Integer.parseInt(tf_LoopCnt.getText()),
+                (byte)Sli_OptoGen.getValueI(),
+                (byte)(Integer.parseInt(tf_StrDelay.getText())/256),     // StartDelay
+                (byte)Integer.parseInt(tf_StrDelay.getText()),
+                (byte)(Integer.parseInt(tf_FramesPT.getText())/256),     // StartDelay
+                (byte)Integer.parseInt(tf_FramesPT.getText()),
+             (Integer.parseInt(tf_Pause.getText())/65536) );       // Pause high byte : at the end version conflicts
         SettingsWnd.setVisible(false);
 }
 
@@ -1092,12 +1217,12 @@ public void BtnConnectBehav ()
     if(Drpl_BehaveFormat.getSelectedIndex() == 0)
     {
           BehavFormat = 0;
-          BehavCam = new Capture(this,640,480, BehavList1.getSelectedText(),30);
+          BehavCam = new Capture(this,640,480, BehavList1.getSelectedText());
     }
     else
     {
           BehavFormat = 1;
-          BehavCam = new Capture(this,320,240, BehavList1.getSelectedText(),30);
+          BehavCam = new Capture(this,320,240, BehavList1.getSelectedText());
     }
     BehavCam.start();
     fBehavCamEnabled = true;
@@ -1126,9 +1251,14 @@ public void SaveSettings()
   }
   PWriteNotes.println("Exposure: " + String.format ("%.2f", (float)Sli_ExpoCam1.getValueI()*0.0012) + "mS - " + Sli_ExpoCam1.getValueI());
   PWriteNotes.println("Gain: " + Integer.toString(Sli_GainCam1.getValueI()));
-  PWriteNotes.println("Focus: " + Integer.toString(Sli_FocusCam1.getValueI()));
-  PWriteNotes.println("RIO X: " + Sld_Cam1.getValueXI());
-  PWriteNotes.println("RIO Y: " + Sld_Cam1.getValueYI());
+  PWriteNotes.println("Black Offset: " + Integer.toString(Sli_BlackOffsetCam1.getValueI()));
+  if(ChBox_AutoCal.isSelected() == true)
+                  PWriteNotes.println("Auto Cal=true");
+           else
+                  PWriteNotes.println("Auto Cal=false");             
+
+  PWriteNotes.println("ROI X: " + Sld_Cam1.getValueXI());
+  PWriteNotes.println("ROI Y: " + Sld_Cam1.getValueYI());
   
   
   if(fCam2Enabled == true)
@@ -1144,9 +1274,13 @@ public void SaveSettings()
       }
       PWriteNotes.println("Exposure: " + String.format ("%.2f", (float)Sli_ExpoCam2.getValueI()*0.0012) + "mS - " + Sli_ExpoCam2.getValueI());
       PWriteNotes.println("Gain: " + Integer.toString(Sli_GainCam2.getValueI()));
-      //PWriteNotes.println("Focus: " + Integer.toString(Sli_FocusCam2.getValueI()));
-      PWriteNotes.println("RIO X: " + Sld_Cam2.getValueXI());
-      PWriteNotes.println("RIO Y: " + Sld_Cam2.getValueYI());
+      PWriteNotes.println("Black Offset: " + Integer.toString(Sli_BlackOffsetCam2.getValueI()));
+     if(ChBox_AutoCal2.isSelected() == true)
+                  PWriteNotes.println("Auto Cal = true");
+           else
+                  PWriteNotes.println("Auto Cal = false");
+      PWriteNotes.println("ROI X: " + Sld_Cam2.getValueXI());
+      PWriteNotes.println("ROI Y: " + Sld_Cam2.getValueYI());
   }
   PWriteNotes.println("");
   PWriteNotes.println("Settings OptoGenetics:");
@@ -1300,9 +1434,23 @@ public void UpdateDropList()
     else 
     {
       ConsoleArea.appendText("Camera found!");
-      ScopeList.setItems(cameras,cameras.length); 
-      BehavList1.setItems(cameras,cameras.length); 
-      Scope2List.setItems(cameras,cameras.length); 
+      
+      if(PApplet.platform == MACOSX )
+      {
+        String[] CamIndex = {"0","1","2","3","4"};
+        ConsoleArea.appendText("No device names available.");
+        ConsoleArea.appendText("Please use 0-4 in the droplist");
+        ConsoleArea.appendText("to select Cam");
+        ScopeList.setItems(CamIndex,5); 
+        BehavList1.setItems(CamIndex,5); 
+        Scope2List.setItems(CamIndex,5); 
+      }
+      else
+      {
+        ScopeList.setItems(cameras,cameras.length); 
+        BehavList1.setItems(cameras,cameras.length); 
+        Scope2List.setItems(cameras,cameras.length); 
+      }
       
       Boolean fFound= false;
       int ScopLstInd = 0;
@@ -1760,7 +1908,7 @@ public void serialEvent(Serial myPort)
     }
     else if(SerialCmd == 'S')    //Stop Recording
     {
-        println("Get to the choppa !");
+        println("Stop Recording.");
         TrigRecordingStop();
     }
   } //<>// //<>//
