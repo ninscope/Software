@@ -27,7 +27,7 @@ public void createGUI(){
   Btn_ConnectScope1.setText("Connect");
   Btn_Record = new GButton(this, 100, 380, 80, 30);
   Btn_Record.setText("Record");
-  label1 = new GLabel(this, 10, 700, 50, 20);
+  label1 = new GLabel(this, 10, 700, 70, 20);
   label1.setText("Rate:");
   label1.setTextBold();
   label1.setOpaque(false);
@@ -35,7 +35,7 @@ public void createGUI(){
   ScopeList.setItems(loadStrings("list_952226"), 0);
   SerialList = new GDropList(this, 100, 350, 290, 80, 3);
   SerialList.setItems(loadStrings("list_368568"), 0);
-  Exposure = new GLabel(this, 10, 520, 60, 20);
+  Exposure = new GLabel(this, 10, 520, 110, 20);
   Exposure.setText("Exposure");
   Exposure.setTextBold();
   Exposure.setOpaque(false);
@@ -50,7 +50,7 @@ public void createGUI(){
   Sli_ExciCam1.setLimits(0, 0, 63);
   Sli_ExciCam1.setNumberFormat(G4P.INTEGER, 0);
   Sli_ExciCam1.setOpaque(false);
-  Excitation = new GLabel(this, 10, 460, 80, 20);
+  Excitation = new GLabel(this, 10, 460, 110, 20);
   Excitation.setText("Excitation");
   Excitation.setTextBold();
   Excitation.setOpaque(false);
@@ -137,7 +137,7 @@ public void createGUI(){
   LbL_Console.setOpaque(false);
   Btn_DualHead = new GButton(this, 190, 10, 80, 30);
   Btn_DualHead.setText("DualHead");
-  LbL_MiniScope2 = new GLabel(this, 750, 50, 80, 20);
+  LbL_MiniScope2 = new GLabel(this, 750, 50, 120, 20);
   LbL_MiniScope2.setText("NINScope 2");
   LbL_MiniScope2.setTextBold();
   LbL_MiniScope2.setOpaque(false);
@@ -145,9 +145,9 @@ public void createGUI(){
   Scope2List.setItems(loadStrings("list_653811"), 0);
   Btn_ConnectScope2 = new GButton(this, 750, 380, 80, 30);
   Btn_ConnectScope2.setText("Connect");
-  SerialPort2List = new GDropList(this, 840, 350, 230, 80, 3);
+  SerialPort2List = new GDropList(this, 850, 350, 280, 80, 3);
   SerialPort2List.setItems(loadStrings("list_527591"), 0);
-  LbL_SerialPort2 = new GLabel(this, 750, 350, 80, 20);
+  LbL_SerialPort2 = new GLabel(this, 750, 350, 90, 20);
   LbL_SerialPort2.setText("Serial Port :");
   LbL_SerialPort2.setTextBold();
   LbL_SerialPort2.setOpaque(false);
@@ -197,11 +197,11 @@ public void createGUI(){
   Btn_Scan.setText("HW Scan");
   Btn_ConsoleClr = new GButton(this, 650, 750, 80, 30);
   Btn_ConsoleClr.setText("Clear");
-  LblDropScp1 = new GLabel(this, 160, 700, 60, 20);
+  LblDropScp1 = new GLabel(this, 180, 700, 60, 20);
   LblDropScp1.setText("Drop:");
   LblDropScp1.setTextBold();
   LblDropScp1.setOpaque(false);
-  LblRecScp1 = new GLabel(this, 230, 700, 70, 20);
+  LblRecScp1 = new GLabel(this, 250, 700, 110, 20);
   LblRecScp1.setText("Rec:");
   LblRecScp1.setTextBold();
   LblRecScp1.setOpaque(false);
@@ -211,7 +211,7 @@ public void createGUI(){
   LbL_FrameBehave = new GLabel(this, 410, 390, 70, 20);
   LbL_FrameBehave.setText("Rate : 0 ");
   LbL_FrameBehave.setOpaque(false);
-  Lbl_RngBuf1Status = new GLabel(this, 70, 700, 80, 20);
+  Lbl_RngBuf1Status = new GLabel(this, 90, 700, 80, 20);
   Lbl_RngBuf1Status.setText("Buffer: 0");
   Lbl_RngBuf1Status.setOpaque(false);
   Btn_Zoom_behave = new GButton(this, 580, 350, 50, 30);
@@ -227,14 +227,14 @@ public void createGUI(){
   Btn_SnapShotCam2.setText("SnapShot");
   Btn_SnapShotBehav = new GButton(this, 490, 350, 80, 30);
   Btn_SnapShotBehav.setText("Snapshot");
-  LbL_Name = new GLabel(this, 290, 10, 40, 20);
+  LbL_Name = new GLabel(this, 290, 10, 60, 20);
   LbL_Name.setText("Name:");
   LbL_Name.setOpaque(false);
-  tf_Name = new GTextField(this, 340, 10, 92, 20, G4P.SCROLLBARS_NONE);
+  tf_Name = new GTextField(this, 360, 10, 92, 20, G4P.SCROLLBARS_NONE);
   tf_Name.setOpaque(true);
-  Btn_SaveSettings = new GButton(this, 450, 10, 80, 30);
+  Btn_SaveSettings = new GButton(this, 480, 10, 80, 30);
   Btn_SaveSettings.setText("Save");
-  Btn_LoadSettings = new GButton(this, 540, 10, 80, 30);
+  Btn_LoadSettings = new GButton(this, 570, 10, 80, 30);
   Btn_LoadSettings.setText("Load");
   ChBox_AutoCal = new GCheckbox(this, 180, 640, 120, 20);
   ChBox_AutoCal.setIconAlign(GAlign.LEFT, GAlign.MIDDLE);
@@ -247,6 +247,7 @@ public void createGUI(){
   Sli_BlackOffsetCam2.setOpaque(false);
   Lbl_BlackOffset2 = new GLabel(this, 750, 600, 160, 20);
   Lbl_BlackOffset2.setText("Desired black level");
+  Lbl_BlackOffset2.setTextBold();
   Lbl_BlackOffset2.setOpaque(false);
   LbL_BlackOffsetStat2 = new GLabel(this, 1050, 600, 80, 20);
   LbL_BlackOffsetStat2.setTextAlign(GAlign.RIGHT, GAlign.MIDDLE);
