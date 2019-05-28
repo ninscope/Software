@@ -5,4 +5,5 @@ Checkout the wiki page for installation of application, additional libraries and
 https://github.com/ninscope/Software/wiki
 
 Check releases for changes and updates
+
 https://github.com/ninscope/Software/releases
