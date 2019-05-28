@@ -9,8 +9,8 @@ import java.util.Scanner;
 import java.io.IOException;
 
 static final int MAJOR = 1;
-static final int MINOR = 00;
-static final int BUILD = 04;
+static final int MINOR = 01;
+static final int BUILD = 00;
 
 
 static final int CMD_GSENSOR_ON = 2;
@@ -31,6 +31,10 @@ static final int CMD_AGAIN = 16;
 static final int CMD_BLACKOFFSET =   17;
 static final int CMD_AUTOCAL_ON  =  18;
 static final int CMD_AUTOCAL_OFF =   19;
+static final int CMD_PAIR_CAM_ON =   20;
+static final int CMD_PAIR_CAM_OFF =   21;
+static final int CMD_DETECT_ON = 22;
+static final int CMD_DETECT_OFF = 23;
 
 static final int IMGBUFSIZE = 60;
 
@@ -78,6 +82,14 @@ Capture cam;
 Capture cam2;
 Capture BehavCam;
 
+int PairCam = 0;
+int PairRetry = 0;
+int camIndex = 0;
+
+int PairCam2 = 0;
+int PairRetry2 = 0;
+int camIndex2 = 0;
+
 int FrameCnt = 0;
 int FrameCnt2 = 0;
 int FramBehaveCnt = 0;
@@ -100,6 +112,9 @@ int Behav3read = 0;
 int Behav3write = 0;
 int Behav3diff = 0;
 int Behav3diffSve = 0;
+
+String[] NINscopeList;
+String[] NINscope2List;
 
 String[] Tiff1Filename;
 String[] Tiff2Filename;
@@ -190,6 +205,7 @@ public void draw(){
               fill(255);
               rect(10,290,376,20);
            }
+           
 
       }
   }
@@ -228,17 +244,137 @@ public void draw(){
   }
   
   Lbl_RngBuf1Status.setText("Buffer: " + Integer.toString(Tiff1diffSve)); 
+  
+  PairCamera1();
+  PairCamera2();
 
 }
 
- //<>//
+public void PairCamera1 ()
+{
+  if(PairCam > 0)
+  {
+      if( PairCam == 1)
+      {
+            cam = new Capture(this,752,480, NINscopeList[camIndex]);
+            cam.start();
+            println("Check Cam :" + camIndex);
+            PairCam = 2;
+            fCamEnabled = true;
+            PairRetry = 50;
+      }
+      else if( PairCam == 2 )
+      {
+            if((byte)cam.pixels[360954] == 0x5D)
+            {
+                  PairCam = 0;
+                  myPort.write( new byte[]{0x02,CMD_PAIR_CAM_OFF,0,0x02}); 
+                  LbL_NINscopeSelcted.setText(NINscopeList[camIndex]);
+                  
+                  fSerialEnabled = true;
+                  Btn_ConnectScope1.setText("Disconnect");
+            }
+            PairRetry--;
+            if( PairRetry == 0)
+            {
+                camIndex++;
+                if( camIndex < NINscopeList.length)
+                {
+                    println("Check Cam :" + camIndex);
+                    fCamEnabled = false;
+                    cam.stop();
+                    cam = new Capture(this,752,480, NINscopeList[camIndex]);
+                    cam.start();
+                    fCamEnabled = true;
+                    PairRetry = 50;
+                }
+                else
+                {
+                     fCamEnabled = false;
+                     ConsoleArea.appendText("Cannot Connect Camera");
+                     SetWarning("Cannot Connect Camera");
+                     myPort.clear();
+                     myPort.stop();
+                     myPort = null;
+                }
+            }
+      }  
+  }
+}
 
+public void PairCamera2 ()
+{
+  if(PairCam2 > 0)
+  {
+      if( PairCam2 == 1)
+      {
+            cam2 = new Capture(this,752,480, NINscope2List[camIndex2]);
+            cam2.start();
+            println("Check Cam :" + camIndex2);
+            PairCam2 = 2;
+            fCam2Enabled = true;
+            PairRetry2 = 50;
+      }
+      else if( PairCam2 == 2 )
+      {
+            if((byte)cam2.pixels[360954] == 0x5D)
+            {
+                  PairCam2 = 0;
+                  myPort2.write( new byte[]{0x02,CMD_PAIR_CAM_OFF,0,0x02}); 
+                  LbL_NINscope2Selected.setText(NINscope2List[camIndex2]);
+                  
+                  fSerial2Enabled = true;
+                  Btn_ConnectScope2.setText("Disconnect");
+            }
+            PairRetry2--;
+            if( PairRetry2 == 0)
+            {
+                camIndex2++;
+                if( camIndex2 < NINscope2List.length)
+                {
+                    println("Check Cam :" + camIndex2);
+                    fCam2Enabled = false;
+                    cam2.stop();
+                    cam2 = new Capture(this,752,480, NINscope2List[camIndex2]);
+                    cam2.start();
+                    fCam2Enabled = true;
+                    PairRetry2 = 50;
+                }
+                else
+                {
+                     fCam2Enabled = false;
+                     ConsoleArea.appendText("Cannot Connect Camera");
+                     SetWarning("Cannot Connect Camera");
+                     myPort2.clear();
+                     myPort2.stop();
+                     myPort2 = null;
+                }
+            }
+      }  
+  }
+}
+
+
+public void WindowWarningDraw(PApplet appc, GWinData data) { 
+      if(WindowWarning.isVisible() == true)
+      {
+         appc.frameRate(30);
+         appc.background(255,0,0);
+         appc.fill(54);
+         appc.rect(10,10, 300, 100); 
+        
+      }
+      else
+      {
+        appc.frameRate(3);
+      }
+}
 
 public void winOptoDraw(PApplet appc, GWinData data) { 
    if(SettingsWnd.isVisible() == true)
    {
       appc.frameRate(30);
-      appc.background(54); //<>//
+      appc.background(54);
       appc.stroke(80);
       appc.rect(20,210,420,1); // line between OptoGen settings and Trigger settings
       appc.rect(20,320,420,1); // line between Trigger settings and Temperature 
@@ -250,6 +386,52 @@ public void winOptoDraw(PApplet appc, GWinData data) {
    }
 }
 
+PGraphics Histogram( PImage SrcHisto )
+{
+    PGraphics DestHisto;
+    int[] Histogram = new int[256];
+    int HistoMax = 0;
+    int HistoMin = 255;
+    int HistoTop = 0;
+    int HistoTopInd = 0;
+    
+    for (int i = 0; i < SrcHisto.pixels.length-6; i++)
+    {            
+          int HistoValue = SrcHisto.pixels[i]&0xff;
+          Histogram[HistoValue] += 1; 
+          if(HistoValue > HistoMax)
+                HistoMax = HistoValue;
+          if( HistoMin > HistoValue)
+                HistoMin = HistoValue;
+    }
+    
+    for (int i = 0; i < 256; i++)
+    {  
+        if( Histogram[i] > HistoTop)
+        {
+                HistoTop = Histogram[i];
+                HistoTopInd = i;
+        }
+    }
+    
+    HistoTop /= 75;
+                
+    DestHisto  = createGraphics(255,100);
+    DestHisto.beginDraw();
+    DestHisto.background(20);
+    DestHisto.stroke(200);
+    
+    DestHisto.text(HistoMin,2,95);
+    DestHisto.text(HistoMax,225,95);
+    DestHisto.text(HistoTopInd,125,95);
+    
+    for (int i = 0; i < 256; i++)
+          if(Histogram[i] > 0)
+              DestHisto.line(i,80,i,80-Histogram[i]/HistoTop);
+    DestHisto.endDraw();
+    return DestHisto;
+}
+
 public void WindZmCam1draw(PApplet appc, GWinData data) { 
 
         if(WindowZoomCam1.isVisible() == true)
@@ -258,6 +440,8 @@ public void WindZmCam1draw(PApplet appc, GWinData data) {
           appc.frameRate(30);
           if( fCamEnabled ){
             appc.image(cam, 0,0);
+            if(Chk_HistoCam1.isSelected() == true)
+                appc.image(Histogram(cam),5,485);
           if( (byte)cam.pixels[360955] == (byte)0xFF)
           {
               appc.stroke(255);
@@ -274,7 +458,6 @@ public void WindZmCam1draw(PApplet appc, GWinData data) {
 } 
 
 public void WindZmBehavdraw(PApplet appc, GWinData data) { 
-
   
   if(windowZoomBehav.isVisible() == true)
   {
@@ -301,6 +484,8 @@ public void WindZmCam2draw(PApplet appc, GWinData data) {
           appc.frameRate(30);
           if( fCam2Enabled) {
             appc.image(cam2,0,0);
+          if(Chk_HistoCam2.isSelected() == true)
+                appc.image(Histogram(cam2),5,485);
           }
   }
   else
@@ -334,12 +519,18 @@ public void customGUI(){
   WindowZoomCam1. setVisible(false);
   windowZoomBehav.setVisible(false);
   WindowZoomCam2. setVisible(false);
+  WindowWarning.setVisible(false);
+  WindowWarning.setAlwaysOnTop(true);
   SettingsWnd.setVisible(false);
   
   SettingsWnd.addDrawHandler(this, "winOptoDraw");
   WindowZoomCam2.addDrawHandler(this, "WindZmCam2draw");
   windowZoomBehav.addDrawHandler(this, "WindZmBehavdraw");
   WindowZoomCam1.addDrawHandler(this, "WindZmCam1draw");
+  WindowWarning.addDrawHandler(this, "WindowWarningDraw");
+  
+  Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
+  WindowWarning.setLocation(screenSize.width/2,screenSize.height/2);
   
   LbL_FramesPT.setVisible(false);
   tf_FramesPT.setVisible(false);
@@ -490,12 +681,14 @@ public void handleToggleControlEvents(GToggleControl CheckBox, GEvent event) {
               else
               {
                     ConsoleArea.appendText( ConsoleLineNumb++ + " NINScope not connected");
+                    SetWarning("NINScope not connected");
               }
           }
     }
     else
     {
       ConsoleArea.appendText( ConsoleLineNumb++ + " NINScope not connected");
+      SetWarning("NINScope not connected");
       if(ChkBox_TriggerInput.isSelected() == true)
             ChkBox_TriggerInput.setSelected(false);
       if(Chkbox_FramesPT.isSelected() == true)
@@ -506,9 +699,9 @@ public void handleToggleControlEvents(GToggleControl CheckBox, GEvent event) {
 public void handleButtonEvents(GButton button, GEvent event) {
 
     if( button == Btn_ConnectScope1)
-            BtnConnectScope1();
+            BtnAutoConnectScope1();
     else if( button == Btn_ConnectScope2)
-            BtnConnectScope2();
+            BtnAutoConnectScope2();
     else if( button == Btn_ConnectBehav)
             BtnConnectBehav();
     else if(button == Btn_SnapShotCam1)
@@ -531,6 +724,8 @@ public void handleButtonEvents(GButton button, GEvent event) {
             BtnSaveSettings();
     else if( button == Btn_LoadSettings)
             BtnLoadSettings();        
+    else if(  button == Btn_Warning)
+              WindowWarning.setVisible(false);
     else if( fSerialEnabled == true)
     {    
          if( button == Btn_Record)
@@ -549,6 +744,8 @@ public void handleButtonEvents(GButton button, GEvent event) {
             myPort.write(new byte[] { 0x02,CMD_TEMP_RD,0,0});
          else if( button == Btn_Zoom_Cam1)
             WindowZoomCam1.setVisible(true);
+         else if(  button == Btn_Detect1)
+              BtnDetect1();
          else if( button == Btn_Zoom_Cam2)
          {
             if( fSerial2Enabled == true )
@@ -558,12 +755,26 @@ public void handleButtonEvents(GButton button, GEvent event) {
             else
             {
               ConsoleArea.appendText( ConsoleLineNumb++ + " NINScope 2 not connected");
+              SetWarning("NINScope 2 not connected");
+            }
+         }
+         else if(  button == Btn_Detect2)
+         {
+            if( fSerial2Enabled == true )
+            {
+                    BtnDetect2();
+            }
+            else
+            {
+              ConsoleArea.appendText( ConsoleLineNumb++ + " NINScope 2 not connected");
+              SetWarning("NINScope 2 not connected");
             }
          }
     }
     else
     {
       ConsoleArea.appendText( ConsoleLineNumb++ + " NINScope not connected");
+      SetWarning("NINScope not connected");
     }        
 }
 
@@ -610,11 +821,13 @@ public void handleSliderEvents(GValueControl slider, GEvent event)
         else 
         {
               ConsoleArea.appendText( ConsoleLineNumb++ + " NINScope 2 not connected");
+              SetWarning("NINScope 2 not connected");
         }
     }
     else
     {
       ConsoleArea.appendText( ConsoleLineNumb++ + " NINScope not connected");
+      SetWarning("NINScope not connected");
     }
 }
 
@@ -765,8 +978,6 @@ public void BtnSaveSettings()
            PWSettings.println(Sld_Cam2.getValueXI());
            PWSettings.println(Sld_Cam2.getValueYI());
 
-          PWSettings.println(ScopeList.getSelectedText());
-          PWSettings.println(Scope2List.getSelectedText());
           PWSettings.println(SerialList.getSelectedText());
           PWSettings.println(SerialPort2List.getSelectedText());
           PWSettings.println(BehavList1.getSelectedText());
@@ -789,7 +1000,11 @@ public void BtnSaveSettings()
           
   }
   else
+  {
         ConsoleArea.appendText( ConsoleLineNumb++ + " Define name");
+        SetWarning("Define name");
+  }
+        
 }
 
 public void BtnLoadSettings()
@@ -955,12 +1170,6 @@ void fileSelected(File selection) {
           Sld_Cam2.setValueY(Integer.parseInt(line));
           
           line = reader.readLine(); println(line);
-          ScopeList.setSelected(SearchDropList( ScopeList , line));
-
-          line = reader.readLine(); println(line);
-          Scope2List.setSelected(SearchDropList( Scope2List , line));
-          
-          line = reader.readLine(); println(line);
           SerialList.setSelected(SearchDropList( SerialList , line));
           
           line = reader.readLine(); println(line);
@@ -1098,6 +1307,7 @@ public void BtnSnapShotCam1()
   else
   {
       ConsoleArea.appendText(ConsoleLineNumb++ + " NINScope 1 not connected");
+      SetWarning("NINScope 1 not connected");
   }
   
 }
@@ -1117,6 +1327,7 @@ public void BtnSnapShotCam2()
   else
   {
       ConsoleArea.appendText(ConsoleLineNumb++ + " NINScope 2 not connected");
+      SetWarning("NINScope 2 not connected");
   }
 }
 
@@ -1135,25 +1346,125 @@ public void Btn_SnapShotBehav()
   else
   {
       ConsoleArea.appendText(ConsoleLineNumb++ + " Behaviour Cam not connected");
+      SetWarning("Behaviour Cam not connected");
   }
 }
+/*
+public int PairCamera1 ( )
+{
+          int camIndex = 0;
+          int Countdel = 0;
+          PairCam = 3000;
+          while(camIndex < NINscopeList.length )
+          {
+              println(NINscopeList[camIndex]);
+              try
+              {
+                cam = new Capture(this,752,480, NINscopeList[camIndex]);
+                cam.start();
+                fCamEnabled = true;
+                while(PairCam == 3000)
+                {
+                  Countdel++;
+                  println(Countdel);
+                   Thread.sleep(1000);
+                }
+                
+                delay(1000);
+                int CamRead = 1000;
+                while(CamRead > 0)
+                {
+                      delay(100);
+                      //cam.read();
+                      println(PairCam);
+                      if( PairCam == (byte)0x5D)
+                      {
+                        cam.stop();
+                        return camIndex;
+                      }
+                      cam.stop();
+                      CamRead--;
+                }
+                cam.stop();
+              }
+              catch( Exception e)
+              {
+              }
+              camIndex++;
+
+          }
+          return 3000;
+}
+*/
 
 
-public void BtnConnectScope1()
+//public int PairCamera2 ( )
+//{
+//          int camIndex = 0;
+//          while(camIndex < NINscope2List.length )
+//          {
+//              println(NINscope2List[camIndex]);
+//              try
+//              {
+//                cam2 = new Capture(this,752,480, NINscope2List[camIndex]);
+//                cam2.start();
+//                delay(100);
+//                println((byte)cam2.pixels[360954]);
+//                cam2.read();
+//                delay(100);
+//                 println((byte)cam2.pixels[360954]);
+//                cam2.read();
+//                delay(100);
+//                cam2.read();
+//                println((byte)cam2.pixels[360954]);
+//                if( (byte)cam2.pixels[360954] == (byte)0x5D)
+//                {
+//                  cam2.stop();
+//                  return camIndex;
+//                }
+//                cam2.stop();
+//              }
+//              catch( Exception e)
+//              {
+//              }
+//              camIndex++;
+
+//          }
+//          return 3000;
+//}
+
+public void SetWarning ( String StrWarning )
+{
+         LbL_warning.setText(StrWarning);
+         LbL_warning.setTextBold();
+         WindowWarning.setVisible(true);
+}
+
+public void BtnAutoConnectScope1()
 {
   if(fCamEnabled == false)
   {
-    
-    cam = new Capture(this,752,480, ScopeList.getSelectedText());
-    cam.start();
-    myPort = new Serial(this, SerialList.getSelectedText(), 2000000); 
-
-    myPort.write( new byte[]{0x02,CMD_GSENSOR_OFF,0,0x02});     // turn off G-sensor in case it was on.
-    
-    fCamEnabled = true;
-    fSerialEnabled = true;
-    
-    Btn_ConnectScope1.setText("Disconnect");
+    try
+    {
+      myPort = new Serial(this, SerialList.getSelectedText(), 2000000);
+    }
+    catch(Exception e)
+    {
+      println(e);
+    }
+    if(myPort != null)
+    {
+        myPort.write( new byte[]{0x02,CMD_GSENSOR_OFF,0,0x02});     // turn off G-sensor in case it was on.
+        delay(100);
+        myPort.write( new byte[]{0x02,CMD_PAIR_CAM_ON,0,0x02});     // turn off G-sensor in case it was on.
+        PairCam = 1;
+        camIndex = 0;
+    }
+    else
+    {
+        ConsoleArea.appendText("Cannot Connect Port");
+        SetWarning("Cannot Connect Port");
+    }        
   }
   else
   {
@@ -1166,10 +1477,139 @@ public void BtnConnectScope1()
     myPort.write(new byte[] { 0x02, CMD_EXCITATION,0,0});
     LbL_ExciStat.setText("0mA - 0"); 
     
+    LbL_NINscopeSelcted.setText("---");
+    
     delay(200);
     
     cam.stop();
+    myPort.clear();
     myPort.stop();
+    myPort = null;
+    fCamEnabled = false;
+    fSerialEnabled = false;
+    Btn_ConnectScope1.setText("Connect");
+    Btn_Record.setVisible(true);
+    ChkBox_TriggerInput.setSelected(false);
+    Sli_ExciCam1.setValue(0);
+  }
+}  
+
+public void BtnAutoConnectScope2()
+{
+  if(fCam2Enabled == false)
+  {
+    try
+    {
+      myPort2 = new Serial(this, SerialPort2List.getSelectedText(), 2000000);
+    }
+    catch(Exception e)
+    {
+      println(e);
+    }
+    if(myPort2 != null)
+    {
+        myPort2.write( new byte[]{0x02,CMD_GSENSOR_OFF,0,0x02});     // turn off G-sensor in case it was on.
+        delay(100);
+        myPort2.write( new byte[]{0x02,CMD_PAIR_CAM_ON,0,0x02});     // turn off G-sensor in case it was on.
+        PairCam2 = 1;
+        camIndex2 = 0;
+    }
+    else
+    {
+        ConsoleArea.appendText("Cannot Connect Port");
+        SetWarning("Cannot Connect Port");
+    }        
+  }
+  else
+  {
+    myPort2.write(new byte[] { 0x02, CMD_EXCITATION,0,0});
+    LbL_ExciStat2.setText("0mA - 0"); 
+    Sli_ExciCam2.setValue(0);
+    
+    LbL_NINscope2Selected.setText("---");
+     
+    delay(200);
+    
+    Btn_ConnectScope2.setText("Connect");
+    cam2.stop();
+    fCam2Enabled = false;
+    myPort2.clear();
+    myPort2.stop();
+    myPort2 = null;
+    fSerial2Enabled = false;
+  }
+}  
+  
+
+/*
+public void BtnAutoConnectScope1()
+{
+  if(fCamEnabled == false)
+  {
+    try
+    {
+      myPort = new Serial(this, SerialList.getSelectedText(), 2000000);
+    }
+    catch(Exception e)
+    {
+      println(e);
+    }
+    if(myPort != null)
+    {
+        myPort.write( new byte[]{0x02,CMD_GSENSOR_OFF,0,0x02});     // turn off G-sensor in case it was on.
+        
+        myPort.write( new byte[]{0x02,CMD_PAIR_CAM_ON,0,0x02});     // turn off G-sensor in case it was on.
+        
+       int CamInd = PairCamera1();
+       if( CamInd != 3000 )
+       {
+        myPort.write( new byte[]{0x02,CMD_PAIR_CAM_OFF,0,0x02}); 
+        
+        cam = new Capture(this,752,480, NINscopeList[CamInd]);
+        cam.start();    
+        
+        //ScopeList.draw();
+        LbL_NINscopeSelcted.setText(NINscopeList[CamInd]);
+        
+        fCamEnabled = true;
+        fSerialEnabled = true;
+        
+        Btn_ConnectScope1.setText("Disconnect");
+       }
+       else
+       {
+         ConsoleArea.appendText("Cannot Connect Camera");
+         SetWarning("Cannot Connect Camera");
+         myPort.clear();
+         myPort.stop();
+         myPort = null;
+       }
+    }
+    else
+    {
+        ConsoleArea.appendText("Cannot Connect Port");
+        SetWarning("Cannot Connect Port");
+    }
+  }
+  else
+  {
+    
+    myPort.write(new byte[] {0x02,CMD_GSENSOR_OFF,0,0x02});      // Gsensor Off
+    Btn_Record.setVisible(true);
+    ChkBox_TriggerInput.setSelected(false);
+    myPort.write(new byte[] {0x02,CMD_SETTINGS,CMD_TRIG_OFF,0,0});
+    
+    myPort.write(new byte[] { 0x02, CMD_EXCITATION,0,0});
+    LbL_ExciStat.setText("0mA - 0"); 
+    
+    LbL_NINscopeSelcted.setText("---");
+    
+    delay(200);
+    
+    cam.stop();
+    myPort.clear();
+    myPort.stop();
+    myPort = null;
     fCamEnabled = false;
     fSerialEnabled = false;
     Btn_ConnectScope1.setText("Connect");
@@ -1178,36 +1618,99 @@ public void BtnConnectScope1()
     Sli_ExciCam1.setValue(0);
   }
 }
+*/
 
-public void BtnConnectScope2()
-{
-  if(fCam2Enabled == false)
-  {
-    cam2 = new Capture(this,752,480, Scope2List.getSelectedText());
-    cam2.start();
-    Btn_ConnectScope2.setText("Disconnect");
-    fCam2Enabled = true;
-    //thread("Cam2Event");
-    myPort2 = new Serial(this, SerialPort2List.getSelectedText(), 2000000);
-    fSerial2Enabled = true;
+
+//public void BtnAutoConnectScope2()
+//{
+//  if(fCam2Enabled == false)
+//  {
+//     try
+//    {
+//        myPort2 = new Serial(this, SerialPort2List.getSelectedText(), 2000000);
+//    }
+//    catch(Exception e)
+//    {
+//            println(e);
+//    }
+//    if(myPort2 != null)
+//    {
+//        myPort2.write( new byte[]{0x02,CMD_PAIR_CAM_ON,0,0x02});     // turn off G-sensor in case it was on.
     
-  }
-  else
-  {
-    myPort2.write(new byte[] { 0x02, CMD_EXCITATION,0,0});
-    LbL_ExciStat2.setText("0mA - 0"); 
-    Sli_ExciCam2.setValue(0);
+//        int CamInd = PairCamera2();
+//        if(CamInd != 3000)
+//        {
+//              myPort2.write( new byte[]{0x02,CMD_PAIR_CAM_OFF,0,0x02});
+//              cam2 = new Capture(this,752,480, NINscope2List[CamInd]);
+//              cam2.start();
+              
+//              LbL_NINscope2Selected.setText(NINscope2List[CamInd]);
+              
+//              Btn_ConnectScope2.setText("Disconnect");
+//              fCam2Enabled = true;
+//              fSerial2Enabled = true;
+//        }
+//        else
+//        {
+//              ConsoleArea.appendText("Cannot Connect Camera");
+//              SetWarning("Cannot Connect Camera");
+//              myPort2.clear();
+//              myPort2.stop();
+//              myPort2 = null;
+//        }
+//    }
+//    else
+//    {
+//        ConsoleArea.appendText("Cannot Connect Port");
+//        SetWarning("Cannot Connect Port");
+//    }
+//  }
+//  else
+//  {
+//    myPort2.write(new byte[] { 0x02, CMD_EXCITATION,0,0});
+//    LbL_ExciStat2.setText("0mA - 0"); 
+//    Sli_ExciCam2.setValue(0);
+    
+//    LbL_NINscope2Selected.setText("---");
      
-    delay(200);
+//    delay(200);
     
-    Btn_ConnectScope2.setText("Connect");
-    cam2.stop();
-    fCam2Enabled = false;
-    myPort2.stop();
-    fSerial2Enabled = false;
-  }
-} 
+//    Btn_ConnectScope2.setText("Connect");
+//    cam2.stop();
+//    fCam2Enabled = false;
+//    myPort2.clear();
+//    myPort2.stop();
+//    myPort2 = null;
+//    fSerial2Enabled = false;
+//  }
+//} 
 
+public void BtnDetect1()
+{
+  int Blink = 5;
+  while(Blink>0)
+  {
+    myPort.write( new byte[]{0x02,CMD_DETECT_ON,0,0x02});
+    delay(100);
+    myPort.write( new byte[]{0x02,CMD_DETECT_OFF,0,0x02});
+    delay(100);
+    Blink--;
+  }
+}
+
+public void BtnDetect2()
+{
+  int Blink = 5;
+  while(Blink>0)
+  {
+    myPort2.write( new byte[]{0x02,CMD_DETECT_ON,0,0x02});
+    delay(100);
+    myPort2.write( new byte[]{0x02,CMD_DETECT_OFF,0,0x02});
+    delay(100);
+    Blink--;
+  }
+  
+}
 
 public void BtnConnectBehav ()
 {
@@ -1430,69 +1933,50 @@ public void UpdateDropList()
     } else if (cameras.length == 0) {
       println("There are no cameras available for capture.");
       ConsoleArea.appendText("ERROR: No Camera found!");
+      SetWarning("No Camera found!");
     } 
     else 
     {
-      ConsoleArea.appendText("Camera found!");
-      
-      if(PApplet.platform == MACOSX )
-      {
-        String[] CamIndex = {"0","1","2","3","4"};
-        ConsoleArea.appendText("No device names available.");
-        ConsoleArea.appendText("Please use 0-4 in the droplist");
-        ConsoleArea.appendText("to select Cam");
-        ScopeList.setItems(CamIndex,5); 
-        BehavList1.setItems(CamIndex,5); 
-        Scope2List.setItems(CamIndex,5); 
-      }
-      else
-      {
-        ScopeList.setItems(cameras,cameras.length); 
-        BehavList1.setItems(cameras,cameras.length); 
-        Scope2List.setItems(cameras,cameras.length); 
-      }
-      
-      Boolean fFound= false;
-      int ScopLstInd = 0;
-      do
-      {
-          ScopeList.setSelected(ScopLstInd);
-          if(ScopeList.getSelectedText().equals(Integer.toString(ScopLstInd) + " NINScope"))
-              fFound = true;
-           ScopLstInd++;
-      }
-      while(fFound == false && ScopLstInd< cameras.length);
-      
-      fFound= false;
-      ScopLstInd = 0;
-      do
-      {
-          BehavList1.setSelected(ScopLstInd);
-          if(!BehavList1.getSelectedText().equals(Integer.toString(ScopLstInd) + " NINScope"))
-              fFound = true;
-           ScopLstInd++;
-      }
-      while(fFound == false && ScopLstInd< cameras.length);
-
+            ConsoleArea.appendText("Camera found!");
+            
+            if(PApplet.platform == MACOSX )
+            {
+              String[] CamIndex = {"0","1","2","3","4"};
+              ConsoleArea.appendText("No device names available.");
+              ConsoleArea.appendText("Please use 0-4 in the droplist");
+              ConsoleArea.appendText("to select Cam");
+              NINscopeList = CamIndex.clone(); 
+              BehavList1.setItems(CamIndex,5); 
+              NINscope2List = CamIndex.clone(); 
+            }
+            else
+            {
+              NINscopeList = cameras.clone();
+              NINscope2List = cameras.clone(); 
+              BehavList1.setItems(cameras,cameras.length); 
+            }
+            
+          
+          ConsoleArea.appendText("Serial port Check..");
+          if(Serial.list().length>0)
+          {
+              SerialList.setItems(Serial.list(),Serial.list().length);
+              SerialPort2List.setItems(Serial.list(),Serial.list().length);
+              if(Serial.list().length > 1)
+                  SerialPort2List.setSelected(Serial.list().length-2);
+              ConsoleArea.appendText("Serial port found!");
+          } 
+          else
+          {
+            ConsoleArea.appendText("ERROR: No Serial port!");
+            SetWarning("No Serial port!");
+            String[] None = {"No Serial Port","Available"};
+            SerialList.setItems(None,1);
+          } 
     }
-    
-    ConsoleArea.appendText("Serial port Check..");
-    if(Serial.list().length>0)
-    {
-        SerialList.setItems(Serial.list(),Serial.list().length);
-        SerialPort2List.setItems(Serial.list(),Serial.list().length);
-        ConsoleArea.appendText("Serial port found!");
-    } 
-    else
-    {
-      ConsoleArea.appendText("ERROR: No Serial port!");
-      String[] None = {"No Serial Port","Available"};
-      SerialList.setItems(None,1);
-    } 
 }
 
 public void SaveImgData1 () {
-// {
    if( Tiff1write != Tiff1read )
    {
    saveBytes(Tiff1Filename[Tiff1write], TiffData[Tiff1write]);
@@ -1505,7 +1989,10 @@ public void SaveImgData1 () {
         }
 
         if((Tiff1read-Tiff1write) > IMGBUFSIZE - 10)
+        {
               ConsoleArea.appendText("Buffer Warning");
+              SetWarning("Buffer Warning");
+        }
     }
     else
     {
@@ -1516,7 +2003,10 @@ public void SaveImgData1 () {
             Tiff1diffSve = Tiff1diff;  
         }
         if( (Tiff1read-Tiff1write+IMGBUFSIZE) > IMGBUFSIZE - 10 )
+        {
               ConsoleArea.appendText("Buffer Warning");
+              SetWarning("Buffer Warning");
+        }
     }
    Tiff1write++;
    if( Tiff1write > IMGBUFSIZE-1 )
@@ -1539,7 +2029,10 @@ public void SaveImgData2 () {
         }
 
         if((Tiff2read-Tiff2write) > IMGBUFSIZE - 10)
+        {
               ConsoleArea.appendText("Buffer 2 Warning");
+              SetWarning("Buffer 2 Warning");
+        }
     }
     else
     {
@@ -1550,7 +2043,10 @@ public void SaveImgData2 () {
             Tiff2diffSve = Tiff2diff;  
         }
         if( (Tiff2read-Tiff2write+IMGBUFSIZE) > IMGBUFSIZE - 10 )
+        {
               ConsoleArea.appendText("Buffer 2 Warning");
+              SetWarning("Buffer 2 Warning");
+        }
     }
    Tiff2write++;
    if( Tiff2write > IMGBUFSIZE-1 )
@@ -1578,7 +2074,10 @@ public void SaveBehaveImg ()
         }
 
         if((Behav3read-Behav3write) > IMGBUFSIZE - 10)
+        {
               ConsoleArea.appendText("Buffer 3 Warning");
+              SetWarning("Buffer 3 Warning");
+        }
     }
     else
     {
@@ -1589,7 +2088,10 @@ public void SaveBehaveImg ()
             Behav3diffSve = Behav3diff;  
         }
         if( (Behav3read-Behav3write+IMGBUFSIZE) > IMGBUFSIZE - 10 )
+        {
               ConsoleArea.appendText("Buffer 3 Warning");
+              SetWarning("Buffer 3 Warning");
+        }
     }
     Behav3write++;
     if( Behav3write > IMGBUFSIZE-1 )
@@ -1630,7 +2132,7 @@ public void captureEvent(Capture c)
   {
        cam.read();             //capture from MiniScope
        
-  
+      
        
        if( fRecord ){                                                                       //only when recording
                CamRecordCnt  = 0x000000FF&(byte)cam.pixels[360959];                         //extract frame count from image
@@ -1911,5 +2413,5 @@ public void serialEvent(Serial myPort)
         println("Stop Recording.");
         TrigRecordingStop();
     }
-  } //<>// //<>//
+  } //<>//
 }
