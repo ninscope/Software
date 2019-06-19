@@ -1,5 +1,5 @@
 # Software
-Software for use with NINScope. The software repository is a Processing sketch.
+Software for use with NINscope. The software repository is a Processing sketch.
 Checkout the wiki page for installation of application, additional libraries and drivers on the platforms Windows, MacOSX and Linux.
 
  :point_right: https://github.com/ninscope/Software/wiki
