@@ -9,8 +9,8 @@ import java.util.Scanner;
 import java.io.IOException;
 
 static final int MAJOR = 1;
-static final int MINOR = 01;
-static final int BUILD = 00;
+static final int MINOR = 02;
+
 
 
 static final int CMD_GSENSOR_ON = 2;
@@ -35,6 +35,7 @@ static final int CMD_PAIR_CAM_ON =   20;
 static final int CMD_PAIR_CAM_OFF =   21;
 static final int CMD_DETECT_ON = 22;
 static final int CMD_DETECT_OFF = 23;
+static final int CMD_PYTEMP_RD = 24;
 
 static final int IMGBUFSIZE = 60;
 
@@ -52,6 +53,8 @@ Boolean fCam2Enabled = false;
 Boolean fBehavCamEnabled = false;
 Boolean fTempUpdate = false;
 int     Temperature;
+Boolean fTempUpdatePy = false;
+int     TemperaturePy;
 int     ConsoleLineNumb = 0;
 Boolean fRecord = false;
 Boolean fStartRecord = false;
@@ -81,6 +84,11 @@ int     FixedRecCnt = 0;
 Capture cam;
 Capture cam2;
 Capture BehavCam;
+
+int FirstTimeUpdateDLCam = 5;
+
+ROIAvg ROI1;
+ROIAvg ROI2;
 
 int PairCam = 0;
 int PairRetry = 0;
@@ -112,6 +120,9 @@ int Behav3read = 0;
 int Behav3write = 0;
 int Behav3diff = 0;
 int Behav3diffSve = 0;
+
+String VersionCAM1;
+String VersionCAM2;
 
 String[] NINscopeList;
 String[] NINscope2List;
@@ -149,7 +160,9 @@ public void setup(){
   // Custom 
   createGUI();
   customGUI();
-  surface.setTitle("NINScope v" + MAJOR + "." + MINOR + "." + BUILD );
+  VersionCAM1 = "";
+  VersionCAM2 = "";
+  surface.setTitle("NINScope v" + MAJOR + "." + MINOR );
   PImage icon = loadImage("NINlogo.png");
   surface.setIcon(icon);
   
@@ -180,7 +193,7 @@ public void setup(){
             BehavImage[PimgInit] = createImage(640, 480, ARGB);      
 
   
-  UpdateDropList();
+  //UpdateDropList();
   thread("SaveThread");
 }
 
@@ -189,8 +202,8 @@ public void draw(){
    fill(51);
    stroke(80);
    rect(5,  45,  390,680);    //Scope 1 group
-   rect(400,45, 340,365);    //Behavior group
-   rect(400,415,340,310);    //Gsensor group
+   rect(400,45, 340,365);     //Behavior group
+   rect(400,415,340,310);     //Gsensor group
    rect(745,45  ,390,680);    //Scope 2 group
      
   image(GSensPanel,410,445); 
@@ -247,15 +260,29 @@ public void draw(){
   
   PairCamera1();
   PairCamera2();
+  
+  if(FirstTimeUpdateDLCam == 1)
+        UpdateDropList();
+  if(FirstTimeUpdateDLCam>0)
+       FirstTimeUpdateDLCam--;
 
 }
+
+
 
 public void PairCamera1 ()
 {
   if(PairCam > 0)
   {
       if( PairCam == 1)
-      {
+      {     
+            if(PApplet.platform != MACOSX )
+            {    
+                  while(!NINscopeList[camIndex].contains("NINScope"))
+                  {
+                    camIndex++;
+                  }
+            }
             cam = new Capture(this,752,480, NINscopeList[camIndex]);
             cam.start();
             println("Check Cam :" + camIndex);
@@ -283,6 +310,13 @@ public void PairCamera1 ()
                     println("Check Cam :" + camIndex);
                     fCamEnabled = false;
                     cam.stop();
+                    if(PApplet.platform != MACOSX )
+                    {    
+                          while(!NINscopeList[camIndex].contains("NINScope"))
+                          {
+                            camIndex++;
+                          }
+                    }                    
                     cam = new Capture(this,752,480, NINscopeList[camIndex]);
                     cam.start();
                     fCamEnabled = true;
@@ -308,6 +342,13 @@ public void PairCamera2 ()
   {
       if( PairCam2 == 1)
       {
+            if(PApplet.platform != MACOSX )
+            {    
+                  while(!NINscope2List[camIndex2].contains("NINScope"))
+                  {
+                    camIndex2++;
+                  }
+            }
             cam2 = new Capture(this,752,480, NINscope2List[camIndex2]);
             cam2.start();
             println("Check Cam :" + camIndex2);
@@ -335,6 +376,13 @@ public void PairCamera2 ()
                     println("Check Cam :" + camIndex2);
                     fCam2Enabled = false;
                     cam2.stop();
+                    if(PApplet.platform != MACOSX )
+                    {    
+                          while(!NINscope2List[camIndex2].contains("NINScope"))
+                          {
+                            camIndex2++;
+                          }
+                    } 
                     cam2 = new Capture(this,752,480, NINscope2List[camIndex2]);
                     cam2.start();
                     fCam2Enabled = true;
@@ -378,7 +426,8 @@ public void winOptoDraw(PApplet appc, GWinData data) {
       appc.stroke(80);
       appc.rect(20,210,420,1); // line between OptoGen settings and Trigger settings
       appc.rect(20,320,420,1); // line between Trigger settings and Temperature 
-      appc.rect(20,410,420,1); // line between Trigger settings and Temperature 
+      appc.rect(20,410,420,1); // 
+      appc.rect(20,503,420,1); // 
    }
    else
    {
@@ -394,6 +443,7 @@ PGraphics Histogram( PImage SrcHisto )
     int HistoMin = 255;
     int HistoTop = 0;
     int HistoTopInd = 0;
+    int Histoaverage = 0;
     
     for (int i = 0; i < SrcHisto.pixels.length-6; i++)
     {            
@@ -403,7 +453,11 @@ PGraphics Histogram( PImage SrcHisto )
                 HistoMax = HistoValue;
           if( HistoMin > HistoValue)
                 HistoMin = HistoValue;
+                
+          Histoaverage +=  HistoValue;     
     }
+    
+    Histoaverage /= SrcHisto.pixels.length-6;
     
     for (int i = 0; i < 256; i++)
     {  
@@ -424,6 +478,7 @@ PGraphics Histogram( PImage SrcHisto )
     DestHisto.text(HistoMin,2,95);
     DestHisto.text(HistoMax,225,95);
     DestHisto.text(HistoTopInd,125,95);
+    DestHisto.text(Histoaverage,2,15);
     
     for (int i = 0; i < 256; i++)
           if(Histogram[i] > 0)
@@ -432,30 +487,54 @@ PGraphics Histogram( PImage SrcHisto )
     return DestHisto;
 }
 
-public void WindZmCam1draw(PApplet appc, GWinData data) { 
+public void WindZmCam1draw(PApplet appc, GWinData data ) { 
 
         if(WindowZoomCam1.isVisible() == true)
         {
           appc.background(54);
           appc.frameRate(30);
-          if( fCamEnabled ){
+          if( fCamEnabled )
+          {
             appc.image(cam, 0,0);
             if(Chk_HistoCam1.isSelected() == true)
-                appc.image(Histogram(cam),5,485);
-          if( (byte)cam.pixels[360955] == (byte)0xFF)
-          {
-              appc.stroke(255);
-              appc.fill(255);
-              appc.rect(0,460,752,20);
+                appc.image(Histogram(cam),10,520);
+                
+            if(Chk_ROIAvgCam1.isSelected() == true)
+            {
+               ROI1.ROIGraph(cam,480,520);   
+            }
+                
+            if( (byte)cam.pixels[360955] == (byte)0xFF)
+            {
+                appc.stroke(255);
+                appc.fill(255);
+                appc.rect(0,460,752,20);
             }
           }
+          
+
         }  
         else
         {
-             appc.frameRate(3);
+             appc.frameRate(30);
         }
 
 } 
+
+public void WndZmCam1Mouse(PApplet appc, GWinData data, MouseEvent mevent) 
+{ 
+
+          if(mevent.getAction() == MouseEvent.PRESS)
+          {
+              ROI1.SetStartRect(appc.mouseX,appc.mouseY);
+          }
+
+          if(mevent.getAction() == MouseEvent.DRAG)
+          {
+            ROI1.SetEndRect(appc.mouseX,appc.mouseY);
+          }
+  
+}
 
 public void WindZmBehavdraw(PApplet appc, GWinData data) { 
   
@@ -472,8 +551,6 @@ public void WindZmBehavdraw(PApplet appc, GWinData data) {
   {
        appc.frameRate(3);
   }
-
-  
 } 
 
 public void WindZmCam2draw(PApplet appc, GWinData data) { 
@@ -482,10 +559,16 @@ public void WindZmCam2draw(PApplet appc, GWinData data) {
   {
           appc.background(54);
           appc.frameRate(30);
-          if( fCam2Enabled) {
+          if( fCam2Enabled) 
+          {
             appc.image(cam2,0,0);
-          if(Chk_HistoCam2.isSelected() == true)
-                appc.image(Histogram(cam2),5,485);
+          
+            if(Chk_HistoCam2.isSelected() == true)
+                  appc.image(Histogram(cam2),10,520);
+            if(Chk_ROIAvgCam2.isSelected() == true)
+            {
+               ROI2.ROIGraph(cam2,480,520);   
+            }
           }
   }
   else
@@ -494,6 +577,21 @@ public void WindZmCam2draw(PApplet appc, GWinData data) {
   }
 
 } 
+
+public void WndZmCam2Mouse(PApplet appc, GWinData data, MouseEvent mevent) 
+{ 
+
+          if(mevent.getAction() == MouseEvent.PRESS)
+          {
+              ROI2.SetStartRect(appc.mouseX,appc.mouseY);
+          }
+
+          if(mevent.getAction() == MouseEvent.DRAG)
+          {
+            ROI2.SetEndRect(appc.mouseX,appc.mouseY);
+          }
+  
+}
 
 
 public void SaveThread ()
@@ -525,8 +623,10 @@ public void customGUI(){
   
   SettingsWnd.addDrawHandler(this, "winOptoDraw");
   WindowZoomCam2.addDrawHandler(this, "WindZmCam2draw");
+  WindowZoomCam2.addMouseHandler(this,"WndZmCam2Mouse");
   windowZoomBehav.addDrawHandler(this, "WindZmBehavdraw");
   WindowZoomCam1.addDrawHandler(this, "WindZmCam1draw");
+  WindowZoomCam1.addMouseHandler(this,"WndZmCam1Mouse");
   WindowWarning.addDrawHandler(this, "WindowWarningDraw");
   
   Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
@@ -536,6 +636,22 @@ public void customGUI(){
   tf_FramesPT.setVisible(false);
   LbL_RecFrameCnt.setVisible(false);
   tf_RecFrmeCnt.setVisible(false);
+  //ChBox_AutoCal.setVisible(false);
+  //ChBox_AutoCal2.setVisible(false);
+  
+  // Gain options - fixed to gain 2
+  Opt_Gain1.setVisible(false);
+  Opt_Gain2.setVisible(false);
+  Opt_Gain1_Cam2.setVisible(false);
+  Opt_Gain2_Cam2.setVisible(false);
+  
+  // Read out Temperture Python - only possible with connection on DAQ between D0 and MISO
+  Btn_TempPyRead.setVisible(false);
+  LbL_TemperaturePy.setVisible(false);
+  Chk_TempAuto.setVisible(false);
+  
+  ROI1 = new ROIAvg(WindowZoomCam1);
+  ROI2 = new ROIAvg(WindowZoomCam2);
   
   timer1 = new GTimer(this, this, "handleTimer1", 1000);
   timer1.start();
@@ -562,10 +678,23 @@ public void handleTimer1 ( GTimer timer )
     
     if(fTempUpdate == true )
     {
-        LbL_Temperature.setText(String.format ("%.2f", ((float)Temperature/256)+25) + "° C");
-       //LbL_Temperature.setText(Temperature + "° C");
+        LbL_Temperature.setText(String.format("%.2f", ((float)Temperature/256)+25) + "° C");
     }
     
+    if(fTempUpdatePy)
+    {      // Celcius = (68°F - 32) × 5/9
+
+      LbL_TemperaturePy.setText(String.format("%.2f", ((float)TemperaturePy-32)*5/9) + "° C");
+    }
+    
+    if( Chk_TempAuto.isSelected() == true)
+    {
+     
+                  //myPort.write(new byte[] { 0x02,CMD_TEMP_RD,0,0});
+
+            myPort.write(new byte[] { 0x02,CMD_PYTEMP_RD,0,0});  
+      
+    }
     
     LblRecScp1.setText(     "Rec: "   +  CamRecordCnt);     
     LblDropScp1.setText(    "Drop: "  + (CamRecordCnt  - RecCntScp1)); 
@@ -579,6 +708,7 @@ public void handleTimer1 ( GTimer timer )
 }
 
 public void handleToggleControlEvents(GToggleControl CheckBox, GEvent event) {
+  print(CheckBox);
   
   if( fSerialEnabled == true)
   {
@@ -594,6 +724,22 @@ public void handleToggleControlEvents(GToggleControl CheckBox, GEvent event) {
                      Btn_Record.setVisible(true);
               }
         
+          }
+          else if(CheckBox == Opt_Gain1)
+          {
+            myPort.write(new byte[] { 0x02,CMD_AGAIN,(byte)0x00,(byte)0xE1});
+            int VarSliGainCam1 = Sli_GainCam1.getValueI();
+            if(Opt_Gain2.isSelected() == true )
+                  VarSliGainCam1 *= 2;
+            LbL_GainStat.setText(Integer.toString(VarSliGainCam1>>7) + "." + Integer.toString((VarSliGainCam1&0x007F)*100/127)); 
+          }
+          else if(CheckBox == Opt_Gain2)
+          {
+            myPort.write(new byte[] { 0x02,CMD_AGAIN,(byte)0x00,(byte)0xE4});
+            int VarSliGainCam1 = Sli_GainCam1.getValueI();
+            if(Opt_Gain2.isSelected() == true )
+                  VarSliGainCam1 *= 2;
+            LbL_GainStat.setText(Integer.toString(VarSliGainCam1>>7) + "." + Integer.toString((VarSliGainCam1&0x007F)*100/127));
           }
           else if(  CheckBox == Chkbox_FramesPT)
           {
@@ -684,6 +830,39 @@ public void handleToggleControlEvents(GToggleControl CheckBox, GEvent event) {
                     SetWarning("NINScope not connected");
               }
           }
+          else if(CheckBox == Opt_Gain1_Cam2)
+          {
+            if( fSerial2Enabled == true)
+            {
+                    myPort2.write(new byte[] { 0x02,CMD_AGAIN,(byte)0x00,(byte)0xE1});
+                    int VarSliGainCam2 = Sli_GainCam2.getValueI();
+                    if(Opt_Gain2_Cam2.isSelected() == true )
+                          VarSliGainCam2 *= 2;
+                    LbL_GainStat2.setText(Integer.toString(VarSliGainCam2>>7) + "." + Integer.toString((VarSliGainCam2&0x007F)*100/127)); 
+            }
+            else
+            {
+                  ConsoleArea.appendText( ConsoleLineNumb++ + " NINScope not connected");
+                  SetWarning("NINScope not connected");
+            }
+            
+          }
+          else if(CheckBox == Opt_Gain2_Cam2)
+          {
+            if( fSerial2Enabled == true)
+            {
+                  myPort2.write(new byte[] { 0x02,CMD_AGAIN,(byte)0x00,(byte)0xE4});
+                  int VarSliGainCam2 = Sli_GainCam2.getValueI();
+                  if(Opt_Gain2_Cam2.isSelected() == true )
+                        VarSliGainCam2 *= 2;
+                  LbL_GainStat2.setText(Integer.toString(VarSliGainCam2>>7) + "." + Integer.toString((VarSliGainCam2&0x007F)*100/127));
+            }
+            else
+            {
+                  ConsoleArea.appendText( ConsoleLineNumb++ + " NINScope not connected");
+                  SetWarning("NINScope not connected");
+            } 
+          }
     }
     else
     {
@@ -726,6 +905,26 @@ public void handleButtonEvents(GButton button, GEvent event) {
             BtnLoadSettings();        
     else if(  button == Btn_Warning)
               WindowWarning.setVisible(false);
+    else if( button == Btn_CentreSLDCam1)
+              BtnCentreSLDCam1();
+    else if( button == Btn_FineGainCam1_Down)
+    {      
+            int VarSli_GainCam1 = Sli_GainCam1.getValueI() & 0xFFC0;
+            VarSli_GainCam1 -= 64;
+            Sli_GainCam1.setValue((float)VarSli_GainCam1);
+            Sli_GainCam1.draw();
+
+
+    }
+    else if( button == Btn_FineGainCam1_Up)
+    {      
+            int VarSli_GainCam1 = Sli_GainCam1.getValueI() & 0xFFC0;
+            VarSli_GainCam1 += 64;
+            Sli_GainCam1.setValue((float)VarSli_GainCam1);
+            Sli_GainCam1.draw();
+
+
+    } 
     else if( fSerialEnabled == true)
     {    
          if( button == Btn_Record)
@@ -742,10 +941,27 @@ public void handleButtonEvents(GButton button, GEvent event) {
             SettingsWnd.setVisible(true);
          else if( button == Btn_TempRead)
             myPort.write(new byte[] { 0x02,CMD_TEMP_RD,0,0});
+         else if( button == Btn_TempPyRead)
+            myPort.write(new byte[] { 0x02,CMD_PYTEMP_RD,0,0});   
          else if( button == Btn_Zoom_Cam1)
             WindowZoomCam1.setVisible(true);
          else if(  button == Btn_Detect1)
               BtnDetect1();
+         else if( button == Btn_CentreSLDCam1)
+              BtnCentreSLDCam1();
+         else if( button == Btn_CentreSLDCam2)
+         {
+            if( fSerial2Enabled == true )
+            {
+              BtnCentreSLDCam2();
+            }
+            else
+            {
+              ConsoleArea.appendText( ConsoleLineNumb++ + " NINScope 2 not connected");
+              SetWarning("NINScope 2 not connected");
+            }
+            
+         }
          else if( button == Btn_Zoom_Cam2)
          {
             if( fSerial2Enabled == true )
@@ -770,6 +986,38 @@ public void handleButtonEvents(GButton button, GEvent event) {
               SetWarning("NINScope 2 not connected");
             }
          }
+         else if( button == Btn_FineGainCam2_Down)
+         {      
+             if( fSerial2Enabled == true )
+             {
+                  int VarSli_GainCam2 = Sli_GainCam2.getValueI() & 0xFFC0;
+                  VarSli_GainCam2 -= 64;
+                  Sli_GainCam2.setValue((float)VarSli_GainCam2);
+                  Sli_GainCam2.draw();
+             }
+             else
+             {
+              ConsoleArea.appendText( ConsoleLineNumb++ + " NINScope 2 not connected");
+              SetWarning("NINScope 2 not connected");
+             }
+      
+      
+         }
+         else if( button == Btn_FineGainCam2_Up)
+         {      
+             if( fSerial2Enabled == true )
+             {                  
+                  int VarSli_GainCam2 = Sli_GainCam2.getValueI() & 0xFFC0;
+                  VarSli_GainCam2 += 64;
+                  Sli_GainCam2.setValue((float)VarSli_GainCam2);
+                  Sli_GainCam2.draw();
+             }
+             else
+             {
+              ConsoleArea.appendText( ConsoleLineNumb++ + " NINScope 2 not connected");
+              SetWarning("NINScope 2 not connected");
+             }
+          } 
     }
     else
     {
@@ -839,14 +1087,22 @@ public void SliOptoGen ()
 
 public void SliGainCam1()
 {
+  
   myPort.write(new byte[] { 0x02, CMD_GAIN, (byte)(Sli_GainCam1.getValueI()/256), (byte)(Sli_GainCam1.getValueI())}); 
-  LbL_GainStat.setText(Integer.toString(Sli_GainCam1.getValueI())); 
+  
+  int VarSliGainCam1 = Sli_GainCam1.getValueI();
+  if(Opt_Gain2.isSelected() == true )
+    VarSliGainCam1 *= 2;
+  LbL_GainStat.setText(Integer.toString(VarSliGainCam1>>7) + "." + Integer.toString((VarSliGainCam1&0x007F)*100/127)); 
 }
 
 public void SliGainCam2()
 {
+        int VarSliGainCam2 = Sli_GainCam2.getValueI();
         myPort2.write(new byte[] { 0x02, CMD_GAIN, (byte)(Sli_GainCam2.getValueI()/256), (byte)(Sli_GainCam2.getValueI())}); 
-        LbL_GainStat2.setText(Sli_GainCam2.getValueS());
+        if(Opt_Gain2_Cam2.isSelected() == true )
+        VarSliGainCam2 *= 2;
+        LbL_GainStat2.setText(Integer.toString(VarSliGainCam2>>7) + "." + Integer.toString((VarSliGainCam2&0x007F)*100/127)); 
 }
 
 public void SliExpoCam1 ()
@@ -1012,6 +1268,29 @@ public void BtnLoadSettings()
   selectInput("Load settings", "fileSelected");
 }
 
+public void BtnCentreSLDCam1()
+{
+  Sld_Cam1.setValueX((int)7);
+  Sld_Cam1.setValueY((int)16);
+  //Sld_Cam1.draw();
+  
+  myPort.write(new byte[] { 0x02,CMD_ROI,(byte)Sld_Cam1.getValueXI(),(byte)Sld_Cam1.getValueYI()});
+   
+  
+}
+
+
+public void BtnCentreSLDCam2()
+{
+  Sld_Cam2.setValueX((int)7);
+  Sld_Cam2.setValueY((int)16);
+  //Sld_Cam1.draw();
+  
+  myPort2.write(new byte[] { 0x02,CMD_ROI,(byte)Sld_Cam2.getValueXI(),(byte)Sld_Cam2.getValueYI()});
+   
+  
+}
+
 public int SearchDropList ( GDropList SearchList , String SearchStr )
 {
   int SrchInd = 0;
@@ -1064,7 +1343,8 @@ void fileSelected(File selection) {
           //Gain
           line = reader.readLine(); println(line);
           Sli_GainCam1.setValue(Integer.parseInt(line));
-          LbL_GainStat.setText(Integer.toString(Sli_GainCam1.getValueI())); 
+          //LbL_GainStat.setText( Integer.toString(Sli_GainCam1.getValueI()) ); 
+          LbL_GainStat.setText(Integer.toString(Sli_GainCam1.getValueI()>>7) + "." + Integer.toString((Sli_GainCam1.getValueI()&0x007F)*100/127));
           
           //BlackOffset
           line = reader.readLine(); println(line);
@@ -1089,7 +1369,7 @@ void fileSelected(File selection) {
           //Gain
           line = reader.readLine(); println(line);
           Sli_GainCam2.setValue(Integer.parseInt(line));
-          LbL_GainStat2.setText(Integer.toString(Sli_GainCam2.getValueI())); 
+          LbL_GainStat2.setText(Integer.toString(Sli_GainCam2.getValueI()>>7) + "." + Integer.toString((Sli_GainCam2.getValueI()&0x007F)*100/127));
           
          //BlackOffset 2
           line = reader.readLine(); println(line);
@@ -1349,89 +1629,7 @@ public void Btn_SnapShotBehav()
       SetWarning("Behaviour Cam not connected");
   }
 }
-/*
-public int PairCamera1 ( )
-{
-          int camIndex = 0;
-          int Countdel = 0;
-          PairCam = 3000;
-          while(camIndex < NINscopeList.length )
-          {
-              println(NINscopeList[camIndex]);
-              try
-              {
-                cam = new Capture(this,752,480, NINscopeList[camIndex]);
-                cam.start();
-                fCamEnabled = true;
-                while(PairCam == 3000)
-                {
-                  Countdel++;
-                  println(Countdel);
-                   Thread.sleep(1000);
-                }
-                
-                delay(1000);
-                int CamRead = 1000;
-                while(CamRead > 0)
-                {
-                      delay(100);
-                      //cam.read();
-                      println(PairCam);
-                      if( PairCam == (byte)0x5D)
-                      {
-                        cam.stop();
-                        return camIndex;
-                      }
-                      cam.stop();
-                      CamRead--;
-                }
-                cam.stop();
-              }
-              catch( Exception e)
-              {
-              }
-              camIndex++;
 
-          }
-          return 3000;
-}
-*/
-
-
-//public int PairCamera2 ( )
-//{
-//          int camIndex = 0;
-//          while(camIndex < NINscope2List.length )
-//          {
-//              println(NINscope2List[camIndex]);
-//              try
-//              {
-//                cam2 = new Capture(this,752,480, NINscope2List[camIndex]);
-//                cam2.start();
-//                delay(100);
-//                println((byte)cam2.pixels[360954]);
-//                cam2.read();
-//                delay(100);
-//                 println((byte)cam2.pixels[360954]);
-//                cam2.read();
-//                delay(100);
-//                cam2.read();
-//                println((byte)cam2.pixels[360954]);
-//                if( (byte)cam2.pixels[360954] == (byte)0x5D)
-//                {
-//                  cam2.stop();
-//                  return camIndex;
-//                }
-//                cam2.stop();
-//              }
-//              catch( Exception e)
-//              {
-//              }
-//              camIndex++;
-
-//          }
-//          return 3000;
-//}
 
 public void SetWarning ( String StrWarning )
 {
@@ -1491,6 +1689,8 @@ public void BtnAutoConnectScope1()
     Btn_Record.setVisible(true);
     ChkBox_TriggerInput.setSelected(false);
     Sli_ExciCam1.setValue(0);
+    
+    surface.setTitle("NINScope v" + MAJOR + "." + MINOR );
   }
 }  
 
@@ -1539,151 +1739,6 @@ public void BtnAutoConnectScope2()
     fSerial2Enabled = false;
   }
 }  
-  
-
-/*
-public void BtnAutoConnectScope1()
-{
-  if(fCamEnabled == false)
-  {
-    try
-    {
-      myPort = new Serial(this, SerialList.getSelectedText(), 2000000);
-    }
-    catch(Exception e)
-    {
-      println(e);
-    }
-    if(myPort != null)
-    {
-        myPort.write( new byte[]{0x02,CMD_GSENSOR_OFF,0,0x02});     // turn off G-sensor in case it was on.
-        
-        myPort.write( new byte[]{0x02,CMD_PAIR_CAM_ON,0,0x02});     // turn off G-sensor in case it was on.
-        
-       int CamInd = PairCamera1();
-       if( CamInd != 3000 )
-       {
-        myPort.write( new byte[]{0x02,CMD_PAIR_CAM_OFF,0,0x02}); 
-        
-        cam = new Capture(this,752,480, NINscopeList[CamInd]);
-        cam.start();    
-        
-        //ScopeList.draw();
-        LbL_NINscopeSelcted.setText(NINscopeList[CamInd]);
-        
-        fCamEnabled = true;
-        fSerialEnabled = true;
-        
-        Btn_ConnectScope1.setText("Disconnect");
-       }
-       else
-       {
-         ConsoleArea.appendText("Cannot Connect Camera");
-         SetWarning("Cannot Connect Camera");
-         myPort.clear();
-         myPort.stop();
-         myPort = null;
-       }
-    }
-    else
-    {
-        ConsoleArea.appendText("Cannot Connect Port");
-        SetWarning("Cannot Connect Port");
-    }
-  }
-  else
-  {
-    
-    myPort.write(new byte[] {0x02,CMD_GSENSOR_OFF,0,0x02});      // Gsensor Off
-    Btn_Record.setVisible(true);
-    ChkBox_TriggerInput.setSelected(false);
-    myPort.write(new byte[] {0x02,CMD_SETTINGS,CMD_TRIG_OFF,0,0});
-    
-    myPort.write(new byte[] { 0x02, CMD_EXCITATION,0,0});
-    LbL_ExciStat.setText("0mA - 0"); 
-    
-    LbL_NINscopeSelcted.setText("---");
-    
-    delay(200);
-    
-    cam.stop();
-    myPort.clear();
-    myPort.stop();
-    myPort = null;
-    fCamEnabled = false;
-    fSerialEnabled = false;
-    Btn_ConnectScope1.setText("Connect");
-    Btn_Record.setVisible(true);
-    ChkBox_TriggerInput.setSelected(false);
-    Sli_ExciCam1.setValue(0);
-  }
-}
-*/
-
-
-//public void BtnAutoConnectScope2()
-//{
-//  if(fCam2Enabled == false)
-//  {
-//     try
-//    {
-//        myPort2 = new Serial(this, SerialPort2List.getSelectedText(), 2000000);
-//    }
-//    catch(Exception e)
-//    {
-//            println(e);
-//    }
-//    if(myPort2 != null)
-//    {
-//        myPort2.write( new byte[]{0x02,CMD_PAIR_CAM_ON,0,0x02});     // turn off G-sensor in case it was on.
-    
-//        int CamInd = PairCamera2();
-//        if(CamInd != 3000)
-//        {
-//              myPort2.write( new byte[]{0x02,CMD_PAIR_CAM_OFF,0,0x02});
-//              cam2 = new Capture(this,752,480, NINscope2List[CamInd]);
-//              cam2.start();
-              
-//              LbL_NINscope2Selected.setText(NINscope2List[CamInd]);
-              
-//              Btn_ConnectScope2.setText("Disconnect");
-//              fCam2Enabled = true;
-//              fSerial2Enabled = true;
-//        }
-//        else
-//        {
-//              ConsoleArea.appendText("Cannot Connect Camera");
-//              SetWarning("Cannot Connect Camera");
-//              myPort2.clear();
-//              myPort2.stop();
-//              myPort2 = null;
-//        }
-//    }
-//    else
-//    {
-//        ConsoleArea.appendText("Cannot Connect Port");
-//        SetWarning("Cannot Connect Port");
-//    }
-//  }
-//  else
-//  {
-//    myPort2.write(new byte[] { 0x02, CMD_EXCITATION,0,0});
-//    LbL_ExciStat2.setText("0mA - 0"); 
-//    Sli_ExciCam2.setValue(0);
-    
-//    LbL_NINscope2Selected.setText("---");
-     
-//    delay(200);
-    
-//    Btn_ConnectScope2.setText("Connect");
-//    cam2.stop();
-//    fCam2Enabled = false;
-//    myPort2.clear();
-//    myPort2.stop();
-//    myPort2 = null;
-//    fSerial2Enabled = false;
-//  }
-//} 
 
 public void BtnDetect1()
 {
@@ -1927,10 +1982,13 @@ public void UpdateDropList()
      ConsoleArea.appendText("Camera Check.");
      String[] cameras = Capture.list();
 
-    if (cameras == null) {
+    if (cameras == null) 
+    {
       println("Failed to retrieve the list of available cameras, will try the default...");
       cam = new Capture(this, 640, 480);
-    } else if (cameras.length == 0) {
+    } 
+    else if (cameras.length == 0) 
+    {
       println("There are no cameras available for capture.");
       ConsoleArea.appendText("ERROR: No Camera found!");
       SetWarning("No Camera found!");
@@ -1954,6 +2012,23 @@ public void UpdateDropList()
               NINscopeList = cameras.clone();
               NINscope2List = cameras.clone(); 
               BehavList1.setItems(cameras,cameras.length); 
+              int SelectedUVCCAM = 0;
+              for(int SearchUVCCam = 0;SearchUVCCam < cameras.length;SearchUVCCam++)
+              {
+                BehavList1.setSelected(SearchUVCCam);
+                println(BehavList1.getSelectedText() + " " + SearchUVCCam);
+                if(!BehavList1.getSelectedText().contains("NINScope") )
+                {
+                      SelectedUVCCAM = SearchUVCCam;
+                      
+                      
+                }
+                
+
+              }
+              BehavList1.setSelected(SelectedUVCCAM);
+              
+                
             }
             
           
@@ -2330,6 +2405,15 @@ public void ProcessTemperature ( String StrTemperature )
           print(StrTemperature);
 }
 
+public void ProcessPyTemperature ( String StrTemperature )
+{
+          TemperaturePy = Integer.parseInt(StrTemperature);
+          fTempUpdatePy = true;
+          print(StrTemperature);
+}
+
+
+
 public void TrigRecordingStr()
 {
         if( fCamEnabled )
@@ -2389,6 +2473,8 @@ public void TrigRecordingStop()
       Btn_Record.setText("Record");
 }
 
+
+
 public void serialEvent(Serial myPort) 
 {
   String read = myPort.readStringUntil(0x0A);
@@ -2412,6 +2498,15 @@ public void serialEvent(Serial myPort)
     {
         println("Stop Recording.");
         TrigRecordingStop();
+    }
+    else if(SerialCmd == 'P')    //Temperature Package from Python480
+    {
+          ProcessPyTemperature( read.substring(1,read.length()-2));
+    }
+    else if( SerialCmd == 'V')
+    {
+      VersionCAM1 = read.substring(1,read.length()-1);
+      surface.setTitle("NINScope v" + MAJOR + "." + MINOR + " Cam FW v" + VersionCAM1  );
     }
   } //<>//
 }
