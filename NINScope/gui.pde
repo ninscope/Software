@@ -54,7 +54,7 @@ public void createGUI(){
   Excitation.setOpaque(false);
   Scope = new GLabel(this, 10, 50, 160, 20);
   Scope.setTextAlign(GAlign.LEFT, GAlign.TOP);
-  Scope.setText("NINScope 1");
+  Scope.setText("NINscope 1");
   Scope.setTextBold();
   Scope.setOpaque(false);
   Gain = new GLabel(this, 10, 580, 80, 20);
@@ -68,7 +68,7 @@ public void createGUI(){
   BehavList1 = new GDropList(this, 410, 320, 320, 220, 10);
   BehavList1.setItems(loadStrings("list_855707"), 0);
   LbLBehaviour = new GLabel(this, 410, 50, 150, 20);
-  LbLBehaviour.setText("Behaviour Camera");
+  LbLBehaviour.setText("USB webcam");
   LbLBehaviour.setTextBold();
   LbLBehaviour.setOpaque(false);
   LbLSerialPort = new GLabel(this, 10, 350, 80, 20);
