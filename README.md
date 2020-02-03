@@ -1,6 +1,6 @@
 # Software
 Software for use with NINscope. The software repository is a Processing sketch.
-Checkout the wiki page for installation of application, additional libraries and drivers on the platforms Windows, MacOSX and Linux.
+Check out the Software wiki page for proper installation for each OS (Mac, Linux, Win).
 
  :point_right: https://github.com/ninscope/Software/wiki
 
